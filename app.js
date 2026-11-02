@@ -1,0 +1,281 @@
+// Voci-Kiste · Kinderseite
+const NEXT = {1:1, 2:1, 3:3, 4:7, 5:14};
+const ACC = ['é','è','ê','à','â','ç','ù','û','î','ï','ô','ë','œ',"'"];
+const IDLE_CAP = 90; // Sekunden: längere Pausen zählen nicht als Übungszeit
+
+const { sb, error: setupErr } = makeClient();
+let kid = ls.get('vk-kid', null);       // { name, pin }
+let units = [], sel = new Set(), dir = 'de-fr', how = 'write', view = 'home', sess = null;
+let prog = { cards:{}, stars:0, streak:0, lastDay:'' };
+let pin = '', pinFor = null, pinErr = '';
+
+/* ---------- Prüfen ---------- */
+const norm = s => s.toLowerCase().replace(/[’`´]/g, "'").replace(/\s+/g, ' ').replace(/[.!?…]+$/, '').trim();
+const deacc = s => s.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/œ/g, 'oe');
+const noArt = s => s.replace(/^(le |la |les |l'|un |une |des |der |die |das |ein |eine )/, '').trim();
+function check(input, target){
+  const a = norm(input); if(!a) return { r:'wrong' };
+  const alts = target.split(/\s*[\/;]\s*/).filter(Boolean);
+  for(const t of alts) if(a === norm(t)) return { r:'ok', t };
+  for(const t of alts) if(deacc(a) === deacc(norm(t))) return { r:'accent', t };
+  for(const t of alts){ const n = norm(t); if(noArt(n) !== n && deacc(a) === deacc(noArt(n))) return { r:'article', t } }
+  return { r:'wrong', t: alts[0] };
+}
+function accentDiff(input, t){ const a = [...norm(input)], b = [...norm(t)]; return [...new Set(b.filter((c, i) => c !== a[i] && /[^\x00-\x7f]/.test(c)))].join(' ') }
+
+/* ---------- Daten ---------- */
+function allWords(ids){ const out = []; for(const u of units){ if(ids && !ids.has(u.id)) continue; (u.words || []).forEach(w => { if(w.fr && w.de) out.push({ u:u.id, w, key:u.id + '|' + w.fr }) }) } return out }
+const boxOf = k => prog.cards[k]?.box || 0;
+const isDue = k => { const c = prog.cards[k]; return !c || c.due <= today() };
+const progKey = () => 'vk-prog-' + (kid?.name || '').toLowerCase();
+
+let saving = false, again = false, saveT = null, unsaved = false;
+function saveProg(){ ls.set(progKey(), prog); unsaved = true; clearTimeout(saveT); saveT = setTimeout(flush, 1500) }
+async function flush(){
+  if(!unsaved || !kid) return;
+  if(saving){ again = true; return }
+  saving = true; unsaved = false;
+  const { error } = await sb.rpc('kid_save', { p_name:kid.name, p_pin:kid.pin, p_cards:prog.cards, p_stars:prog.stars || 0, p_streak:prog.streak || 0, p_last_day:prog.lastDay || null });
+  saving = false;
+  if(error){ unsaved = true; toast('Speichern hat nicht geklappt. Ich versuche es später nochmals.') }
+  if(again){ again = false; flush() }
+}
+window.addEventListener('pagehide', () => { if(unsaved) flush() });
+document.addEventListener('visibilitychange', () => { if(document.visibilityState === 'hidden' && unsaved) flush() });
+
+function touchDay(){ const t = today(); if(prog.lastDay === t) return; prog.streak = prog.lastDay === today(-1) ? (prog.streak || 0) + 1 : 1; prog.lastDay = t }
+
+/* ---------- Start & Anmelden ---------- */
+async function init(){
+  if(setupErr){ $('#view').innerHTML = setupMessage(setupErr); return }
+  dir = ls.get('vk-dir', 'de-fr'); how = ls.get('vk-how', 'write');
+  const { data, error } = await sb.from('units').select('id,title,ord,words').order('ord').order('title');
+  if(error){ $('#view').innerHTML = `<div class="empty"><h2>Keine Verbindung</h2><p>Die Wörter konnten nicht geladen werden. Bitte später nochmals versuchen.</p></div>`; return }
+  units = data || [];
+  if(kid) await login(kid.name, kid.pin, true); else renderWho();
+}
+
+async function renderWho(){
+  showChrome(false);
+  const v = $('#view');
+  const { data, error } = await sb.rpc('kid_names');
+  if(error){ v.innerHTML = `<div class="empty"><p>Die Namen konnten nicht geladen werden.</p></div>`; return }
+  if(!data?.length){ v.innerHTML = `<div class="empty"><h2>Noch niemand eingetragen</h2><p>Die Eltern tragen auf der Elternseite zuerst die Kinder mit PIN ein.</p></div>`; return }
+  v.innerHTML = `<section><h2>Wer übt heute?</h2><div class="who">${data.map(k => `<button data-n="${esc(k.name)}"><span class="ava">${esc(k.name.slice(0,1).toUpperCase())}</span>${esc(k.name)}</button>`).join('')}</div></section>`;
+  v.querySelectorAll('.who button').forEach(b => b.onclick = () => { pinFor = b.dataset.n; pin = ''; pinErr = ''; renderPin() });
+}
+
+function renderPin(){
+  const v = $('#view');
+  v.innerHTML = `<div class="pinbox" id="pinbox"><h2>Hallo ${esc(pinFor)}!</h2><p class="hint">Tippe deine PIN</p>
+    <div class="dots">${[0,1,2,3].map(i => `<i class="${i < pin.length ? 'on' : ''}"></i>`).join('')}</div>
+    ${pinErr ? `<p class="error">${esc(pinErr)}</p>` : ''}
+    <div class="pad">${[1,2,3,4,5,6,7,8,9].map(n => `<button data-k="${n}">${n}</button>`).join('')}<button data-k="back" aria-label="Löschen">⌫</button><button data-k="0">0</button><button data-k="x" aria-label="Zurück">✕</button></div></div>`;
+  if(pinErr){ $('#pinbox').classList.add('shake') }
+  v.querySelectorAll('.pad button').forEach(b => b.onclick = () => key(b.dataset.k));
+}
+async function key(k){
+  if(k === 'x'){ renderWho(); return }
+  if(k === 'back'){ pin = pin.slice(0, -1); pinErr = ''; renderPin(); return }
+  if(pin.length >= 4) return;
+  pin += k; pinErr = ''; renderPin();
+  if(pin.length === 4){
+    const ok = await login(pinFor, pin, false);
+    if(!ok){ pin = ''; pinErr = 'Diese PIN stimmt nicht. Nochmals!'; renderPin() }
+  }
+}
+document.addEventListener('keydown', e => { if(!kid && pinFor && $('#pinbox')){ if(/^[0-9]$/.test(e.key)) key(e.key); else if(e.key === 'Backspace') key('back') } });
+
+async function login(name, p, silent){
+  const { data, error } = await sb.rpc('kid_login', { p_name:name, p_pin:p });
+  if(error || !data){
+    if(silent){ ls.del('vk-kid'); kid = null; renderWho() }
+    return false;
+  }
+  kid = { name:data.name, pin:p }; ls.set('vk-kid', kid);
+  prog = { cards:data.cards || {}, stars:data.stars || 0, streak:data.streak || 0, lastDay:data.last_day || '' };
+  // Falls auf diesem Gerät neuere, noch nicht gespeicherte Daten liegen
+  const local = ls.get(progKey(), null);
+  if(local && local.lastDay && (!prog.lastDay || local.lastDay > prog.lastDay)){ prog = local; unsaved = true; flush() }
+  sel = new Set(ls.get('vk-sel-' + kid.name.toLowerCase(), []).filter(id => units.some(u => u.id === id)));
+  if(!sel.size && units.length) sel.add(units[0].id);
+  view = 'home'; sess = null; render();
+  return true;
+}
+$('#logout').onclick = async () => { await flush(); ls.del('vk-kid'); kid = null; sess = null; renderWho() };
+
+function showChrome(on){ $('#stats').hidden = !on; $('#tabs').hidden = !on; if(on) $('#logout').textContent = kid.name + ' · Abmelden' }
+
+/* ---------- Ansichten ---------- */
+function setTab(t){ if(sess) endSession(); view = t; sess = null; $('#tab-home').setAttribute('aria-selected', t === 'home'); $('#tab-words').setAttribute('aria-selected', t === 'words'); render() }
+$('#tab-home').onclick = () => setTab('home'); $('#tab-words').onclick = () => setTab('words');
+
+function render(){
+  showChrome(true);
+  $('#stars').textContent = prog.stars || 0;
+  $('#streak').textContent = (prog.lastDay === today() || prog.lastDay === today(-1)) ? (prog.streak || 0) : 0;
+  if(sess) return renderSess();
+  view === 'words' ? renderWords() : renderHome();
+}
+
+function renderHome(){
+  const v = $('#view');
+  if(!units.length){ v.innerHTML = `<div class="empty"><h2>Noch keine Wörter</h2><p>Die Eltern tragen die Wörter auf der Elternseite ein.</p></div>`; return }
+  const ws = allWords(sel), counts = [0,0,0,0,0,0];
+  ws.forEach(x => counts[boxOf(x.key)]++);
+  const due = ws.filter(x => isDue(x.key)).length, max = Math.max(1, ...counts);
+  v.innerHTML = `<div class="stack-v">
+  <section><span class="label">Welche Unité?</span>
+    <div class="chips">${units.map(u => `<button class="chip" data-u="${esc(u.id)}" aria-pressed="${sel.has(u.id)}">${esc(u.title)}<span>${(u.words || []).length} Wörter</span></button>`).join('')}</div>
+  </section>
+  <section><span class="label">Dein Karteikasten</span>
+    <div class="panel">
+      <div class="faecher">${counts.map((c, i) => `<div class="fach" style="--c:var(--f${i})"><div class="fstack"><i style="height:${c ? Math.max(6, c / max * 100) : 0}%"></i></div><b>${c}</b><small>${FACH[i].n}<br>${FACH[i].d}</small></div>`).join('')}</div>
+      <p class="hint">Richtig: Die Karte rutscht ein Fach weiter. Falsch: zurück in Fach 1. In Fach 5 sitzt das Wort.</p>
+    </div>
+  </section>
+  <section class="settings">
+    <div><span class="label">Richtung</span><div class="seg" id="dir">
+      <button data-d="de-fr" aria-pressed="${dir === 'de-fr'}">Deutsch → Français</button>
+      <button data-d="fr-de" aria-pressed="${dir === 'fr-de'}">Français → Deutsch</button></div></div>
+    <div><span class="label">So übe ich</span><div class="seg" id="how">
+      <button data-h="write" aria-pressed="${how === 'write'}">Schreiben</button>
+      <button data-h="choice" aria-pressed="${how === 'choice'}">Auswählen</button>
+      ${hasTTS ? `<button data-h="listen" aria-pressed="${how === 'listen'}">Hören</button>` : ''}</div></div>
+  </section>
+  <section class="actions">
+    <button class="act" id="go-learn" ${ws.length ? '' : 'disabled'}><strong>Anschauen</strong><span>Karten umdrehen und anhören</span></button>
+    <button class="act main" id="go-practice" ${ws.length ? '' : 'disabled'}><strong>Üben</strong><span>${due ? `${Math.min(due, 12)} Karten sind dran` : 'Heute alles erledigt – trotzdem üben'}</span></button>
+    <button class="act" id="go-test" ${ws.length >= 4 ? '' : 'disabled'}><strong>Test</strong><span>${Math.min(10, ws.length)} Wörter mit Note</span></button>
+  </section></div>`;
+  v.querySelectorAll('.chip').forEach(b => b.onclick = () => { const id = b.dataset.u; sel.has(id) ? sel.delete(id) : sel.add(id); ls.set('vk-sel-' + kid.name.toLowerCase(), [...sel]); render() });
+  v.querySelectorAll('#dir button').forEach(b => b.onclick = () => { dir = b.dataset.d; ls.set('vk-dir', dir); render() });
+  v.querySelectorAll('#how button').forEach(b => b.onclick = () => { how = b.dataset.h; ls.set('vk-how', how); render() });
+  $('#go-learn').onclick = () => start('learn'); $('#go-practice').onclick = () => start('practice'); $('#go-test').onclick = () => start('test');
+}
+
+/* ---------- Runde ---------- */
+function start(kind){
+  const ws = allWords(sel); let items;
+  if(kind === 'practice'){
+    const due = ws.filter(x => isDue(x.key)).sort((a, b) => boxOf(a.key) - boxOf(b.key) || Math.random() - .5);
+    items = shuffle(due.length ? due.slice(0, 12) : shuffle(ws.slice()).slice(0, 10));
+  } else if(kind === 'test') items = shuffle(ws.slice()).slice(0, 10);
+  else items = ws.slice();
+  const now = Date.now();
+  sess = { kind, how: kind === 'test' && how === 'choice' ? 'write' : how, dir, items, i:0, res:[], requeued:new Set(), answered:null, flip:false, pool:ws,
+           units:[...sel], startedAt:new Date(now).toISOString(), last:now, secs:0, steps:0, logged:false };
+  render(); window.scrollTo({ top:0 });
+}
+function tick(){ const now = Date.now(); sess.secs += Math.min(IDLE_CAP, (now - sess.last) / 1000); sess.last = now; sess.steps++ }
+async function endSession(){
+  const s = sess; if(!s || s.logged || !kid) return; s.logged = true;
+  if(!s.steps) return;
+  const good = s.res.filter(r => r.r === 'ok' || r.r === 'accent').length;
+  const { error } = await sb.rpc('kid_log', { p_name:kid.name, p_pin:kid.pin, p_kind:s.kind, p_units:s.units, p_answers:s.res.length, p_correct:good, p_seconds:Math.round(s.secs), p_started:s.startedAt });
+  if(error) toast('Die Übungszeit konnte nicht gespeichert werden.');
+  flush();
+}
+function q(){ const it = sess.items[sess.i]; const fr = sess.how === 'listen' || sess.dir === 'de-fr'; return { it, ask: fr ? it.w.de : it.w.fr, target: fr ? it.w.fr : it.w.de, frAnswer: fr } }
+
+function renderSess(){
+  const v = $('#view'), s = sess, n = s.items.length;
+  if(s.i >= n) return renderResult();
+  const head = `<div class="sesshead"><span class="label">${s.kind === 'learn' ? 'Anschauen' : s.kind === 'test' ? 'Test' : 'Üben'} · ${s.i + 1} / ${n}</span><button class="ghost" id="stop">Beenden</button></div><div class="bar"><i style="width:${s.i / n * 100}%"></i></div>`;
+  const { it, ask, target, frAnswer } = q();
+  if(s.kind === 'learn'){
+    v.innerHTML = `<div class="stack-v" style="gap:16px">${head}<div class="qcard">
+      <button class="flip ${s.flip ? 'on' : ''}" id="flip" aria-label="Karte umdrehen"><div class="in">
+        <div class="side"><span class="qlang">${s.dir === 'de-fr' ? 'Deutsch' : 'Français'}</span><span class="qword">${esc(s.dir === 'de-fr' ? it.w.de : it.w.fr)}</span><span class="hint">Tippen zum Umdrehen</span></div>
+        <div class="side back"><span class="qlang">${s.dir === 'de-fr' ? 'Français' : 'Deutsch'}</span><span class="qword">${esc(s.dir === 'de-fr' ? it.w.fr : it.w.de)}</span></div>
+      </div></button>
+      <div class="navrow"><button class="ghost" id="prev" ${s.i ? '' : 'disabled'}>‹ Zurück</button>${hasTTS ? `<button class="speak" id="say" aria-label="Französisch anhören">${SPK}</button>` : ''}<button class="primary" id="next">${s.i === n - 1 ? 'Fertig' : 'Weiter ›'}</button></div>
+    </div></div>`;
+    $('#flip').onclick = () => { s.flip = !s.flip; $('#flip').classList.toggle('on', s.flip) };
+    $('#prev').onclick = () => { s.i--; s.flip = false; render() };
+    $('#next').onclick = () => { tick(); s.i++; s.flip = false; render() };
+    if(hasTTS) $('#say').onclick = () => speak(it.w.fr);
+    $('#stop').onclick = () => { s.i = s.items.length; render() };
+    return;
+  }
+  const a = s.answered;
+  let prompt;
+  if(s.how === 'listen') prompt = `<span class="qlang">Hör zu und schreib auf Französisch</span><button class="speak big" id="say" aria-label="Nochmals anhören">${SPK}</button>`;
+  else prompt = `<span class="qlang">${frAnswer ? 'Wie heisst das auf Französisch?' : 'Was heisst das auf Deutsch?'}</span><span class="qword">${esc(ask)}</span>${!frAnswer && hasTTS ? `<button class="speak" id="say" aria-label="Anhören">${SPK}</button>` : ''}`;
+  let body = '';
+  if(s.how === 'choice'){
+    if(!s.opts){ const others = shuffle(s.pool.map(x => frAnswer ? x.w.fr : x.w.de).filter(t => t !== target)); s.opts = shuffle([target, ...[...new Set(others)].slice(0, 3)]) }
+    body = `<div class="choices">${s.opts.map((o, i) => `<button data-o="${i}" ${a ? 'disabled' : ''} class="${a ? (o === target ? 'right' : (a.input === o ? 'wrong' : '')) : ''}">${esc(o)}</button>`).join('')}</div>`;
+  } else {
+    body = `<form class="answer" id="f" autocomplete="off"><input id="inp" aria-label="Antwort" autocapitalize="off" autocorrect="off" spellcheck="false" ${a ? 'readonly' : ''} value="${esc(a ? a.input : '')}">
+      ${frAnswer && !a ? `<div class="accents">${ACC.map(c => `<button type="button" data-c="${esc(c)}">${esc(c)}</button>`).join('')}</div>` : ''}
+      ${a ? '' : '<button class="primary" type="submit">Prüfen</button>'}</form>`;
+  }
+  let fb = '';
+  if(a){
+    const T = { ok:['Richtig!',''], accent:['Fast richtig!', `Achte auf die Akzente: <b>${esc(accentDiff(a.input, a.t))}</b>`], article:['Fast! Der Artikel fehlt.', 'Lerne das Wort immer mit le, la oder l\''], wrong:['Leider falsch.','Richtig ist:'] }[a.r];
+    fb = `<div class="fb ${a.r}"><h3>${T[0]}</h3>${T[1] ? `<p>${T[1]}</p>` : ''}${a.r !== 'ok' ? `<p class="sol">${esc(target)}</p>` : ''}${s.how === 'listen' ? `<p>Auf Deutsch: ${esc(it.w.de)}</p>` : ''}<button class="primary" id="next">${s.i === n - 1 ? 'Zum Resultat' : 'Weiter'}</button></div>`;
+  }
+  v.innerHTML = `<div class="stack-v" style="gap:16px">${head}<div class="qcard">${prompt}${body}${fb}</div></div>`;
+  $('#stop').onclick = () => { s.i = s.items.length; render() };
+  const say = $('#say'); if(say) say.onclick = () => speak(it.w.fr);
+  if(s.how === 'listen' && !a && !s.spoken){ s.spoken = true; setTimeout(() => speak(it.w.fr), 250) }
+  if(s.how === 'choice' && !a) v.querySelectorAll('.choices button').forEach(b => b.onclick = () => { const o = s.opts[+b.dataset.o]; answer(o, o === target ? { r:'ok', t:target } : { r:'wrong', t:target }) });
+  if(s.how !== 'choice' && !a){
+    const inp = $('#inp'); inp.focus();
+    v.querySelectorAll('.accents button').forEach(b => b.onclick = () => { const p = inp.selectionStart ?? inp.value.length; inp.value = inp.value.slice(0, p) + b.dataset.c + inp.value.slice(inp.selectionEnd ?? p); inp.focus(); inp.setSelectionRange(p + 1, p + 1) });
+    $('#f').onsubmit = e => { e.preventDefault(); if(!inp.value.trim()){ inp.focus(); return } answer(inp.value, check(inp.value, target)) };
+  }
+  const nx = $('#next'); if(nx){ nx.focus(); nx.onclick = () => { s.i++; s.answered = null; s.opts = null; s.spoken = false; render() } }
+}
+
+function answer(input, c){
+  const s = sess, { it } = q(); tick(); s.answered = { input, ...c };
+  s.res.push({ it, r:c.r, input });
+  if(c.r === 'ok' || c.r === 'accent') prog.stars = (prog.stars || 0) + 1;
+  if(s.kind === 'practice'){
+    const k = it.key, cur = prog.cards[k] || { box:0, due:today() };
+    const right = c.r === 'ok' || c.r === 'accent';
+    let box = cur.box || 0;
+    if(right) box = cur.box === 0 ? 2 : Math.min(5, box + 1);
+    else if(c.r === 'article') box = Math.max(1, box);
+    else box = 1;
+    prog.cards[k] = { box, due: today(right ? (cur.box === 5 ? 30 : NEXT[box]) : 1) };
+    if(!right && !s.requeued.has(k)){ s.requeued.add(k); s.items.push(it) }
+  }
+  touchDay(); saveProg(); render();
+}
+
+function renderResult(){
+  const s = sess, n = s.res.length;
+  endSession();
+  if(s.kind === 'learn'){
+    $('#view').innerHTML = `<div class="result"><h2>Gut angeschaut!</h2><p>Jetzt bei «Üben» zeigen, was du dir gemerkt hast.</p><div class="row"><button class="primary" id="home">Zum Karteikasten</button></div></div>`;
+    $('#home').onclick = () => { sess = null; render() }; return;
+  }
+  const good = s.res.filter(r => r.r === 'ok' || r.r === 'accent').length, half = s.res.filter(r => r.r === 'article').length;
+  const wrong = s.res.filter(r => r.r !== 'ok' && r.r !== 'accent');
+  let extra = '';
+  if(s.kind === 'test' && n){ const pts = good + half * .5; const note = Math.round((1 + 5 * pts / n) * 2) / 2; extra = `<div><b>${note.toFixed(1)}</b><span>Note (${pts} von ${n} Punkten)</span></div>` }
+  const msg = !n ? 'Keine Antworten in dieser Runde.' : good === n ? 'Super, alles gewusst! Très bien!' : good / n >= .7 ? 'Gut gemacht! Bien joué!' : 'Dranbleiben – morgen sitzt es besser.';
+  $('#view').innerHTML = `<div class="result"><h2>${msg}</h2>
+    <div class="big3"><div><b>${good}</b><span>richtig</span></div><div><b>${wrong.length}</b><span>${s.kind === 'practice' ? 'nochmals üben' : 'falsch oder fast'}</span></div>${extra}</div>
+    ${wrong.length ? `<span class="label">Diese Wörter nochmals anschauen</span><div class="tw"><table><thead><tr><th>Deutsch</th><th>Français</th><th>Deine Antwort</th></tr></thead><tbody>${wrong.map(r => `<tr><td>${esc(r.it.w.de)}</td><td><b>${esc(r.it.w.fr)}</b></td><td>${esc(r.input)}</td></tr>`).join('')}</tbody></table></div>` : ''}
+    <div class="row"><button class="primary" id="home">Zum Karteikasten</button><button class="ghost" id="more">Nochmals</button></div></div>`;
+  $('#home').onclick = () => { sess = null; render() };
+  $('#more').onclick = () => start(s.kind);
+}
+
+/* ---------- Wörter (nur anschauen) ---------- */
+function renderWords(){
+  const v = $('#view');
+  if(!units.length){ v.innerHTML = `<div class="empty"><p>Noch keine Wörter eingetragen.</p></div>`; return }
+  v.innerHTML = `<div class="stack-v" style="gap:14px">${units.map(u => `<details class="unit" ${sel.has(u.id) ? 'open' : ''}><summary>${esc(u.title)} <small>${(u.words || []).length} Wörter</small></summary><div class="body">
+    <div class="tw"><table><thead><tr><th>Français</th><th>Deutsch</th><th>Fach</th></tr></thead><tbody>
+    ${(u.words || []).map(w => { const b = boxOf(u.id + '|' + w.fr); return `<tr><td>${hasTTS ? `<button class="mini" data-say="${esc(w.fr)}" aria-label="Anhören">${SPK}</button>` : ''}<b>${esc(w.fr)}</b></td><td>${esc(w.de)}</td><td><span class="dot" style="${b ? `background:var(--f${b})` : ''}">${b || 'neu'}</span></td></tr>` }).join('')}
+    </tbody></table></div></div></details>`).join('')}</div>`;
+  v.querySelectorAll('[data-say]').forEach(b => b.onclick = () => speak(b.dataset.say));
+}
+
+document.addEventListener('keydown', e => { if(e.key === 'Enter' && sess && sess.answered){ const nx = $('#next'); if(nx && document.activeElement !== nx){ e.preventDefault(); nx.click() } } });
+init();

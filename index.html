@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Voci-Kiste Français</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand"><h1>Voci-Kiste</h1><small>Français</small></div>
+    <div class="stats" id="stats" hidden>
+      <span class="pill" title="Sterne: richtige Antworten"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l2.9 6.6 7.1.6-5.4 4.7 1.6 7L12 17.3 5.8 21l1.6-7L2 9.2l7.1-.6z"/></svg><span id="stars">0</span></span>
+      <span class="pill" title="Tage nacheinander geübt"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M13 2s1 4-2 7-3 5-3 7a5 5 0 0 0 10 0c0-3-2-4-2-7 0 0 3 2 3 6 0 4-3 7-7 7s-7-3-7-7c0-6 8-8 8-13z"/></svg><span id="streak">0</span> Tage</span>
+      <button class="ghost" id="logout"></button>
+    </div>
+  </header>
+  <nav class="tabs" role="tablist" id="tabs" hidden>
+    <button role="tab" id="tab-home" aria-selected="true">Üben</button>
+    <button role="tab" id="tab-words" aria-selected="false">Wörter</button>
+  </nav>
+  <main id="view"><p class="hint">Wird geladen …</p></main>
+</div>
+<div class="toast" id="toast" hidden></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="config.js"></script>
+<script src="shared.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
