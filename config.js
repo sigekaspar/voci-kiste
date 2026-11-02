@@ -4,6 +4,6 @@
 // 2. den öffentlichen Schlüssel («anon public» oder «Publishable key») bei key eintragen
 // Diesen Schlüssel darf man öffentlich machen. Den geheimen «service_role»/«Secret key» NIE hier eintragen!
 window.VOCI_CONFIG = {
-  url: "https://fapbkoxsiubrrbrhflei.supabase.co/rest/v1/",
+  url: "https://fapbkoxsiubrrbrhflei.supabase.co",
   key: "sb_publishable_3eyHZoKlsBnfXAwSmr6Xcw_qBj-PjcD"
 };

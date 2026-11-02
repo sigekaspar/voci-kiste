@@ -37,7 +37,7 @@ async function flush(){
   saving = true; unsaved = false;
   const { error } = await sb.rpc('kid_save', { p_name:kid.name, p_pin:kid.pin, p_cards:prog.cards, p_stars:prog.stars || 0, p_streak:prog.streak || 0, p_last_day:prog.lastDay || null });
   saving = false;
-  if(error){ unsaved = true; toast('Speichern hat nicht geklappt. Ich versuche es später nochmals.') }
+  if(error){ console.error(error); unsaved = true; toast('Speichern hat nicht geklappt: ' + error.message) }
   if(again){ again = false; flush() }
 }
 window.addEventListener('pagehide', () => { if(unsaved) flush() });
@@ -50,7 +50,7 @@ async function init(){
   if(setupErr){ $('#view').innerHTML = setupMessage(setupErr); return }
   dir = ls.get('vk-dir', 'de-fr'); how = ls.get('vk-how', 'write');
   const { data, error } = await sb.from('units').select('id,title,ord,words').order('ord').order('title');
-  if(error){ $('#view').innerHTML = `<div class="empty"><h2>Keine Verbindung</h2><p>Die Wörter konnten nicht geladen werden. Bitte später nochmals versuchen.</p></div>`; return }
+  if(error){ console.error(error); $('#view').innerHTML = `<div class="empty"><h2>Keine Verbindung</h2><p>Die Wörter konnten nicht geladen werden: ${esc(error.message)}</p></div>`; return }
   units = data || [];
   if(kid) await login(kid.name, kid.pin, true); else renderWho();
 }
@@ -173,7 +173,7 @@ async function endSession(){
   if(!s.steps) return;
   const good = s.res.filter(r => r.r === 'ok' || r.r === 'accent').length;
   const { error } = await sb.rpc('kid_log', { p_name:kid.name, p_pin:kid.pin, p_kind:s.kind, p_units:s.units, p_answers:s.res.length, p_correct:good, p_seconds:Math.round(s.secs), p_started:s.startedAt });
-  if(error) toast('Die Übungszeit konnte nicht gespeichert werden.');
+  if(error){ console.error(error); toast('Übungszeit nicht gespeichert: ' + error.message) }
   flush();
 }
 function q(){ const it = sess.items[sess.i]; const fr = sess.how === 'listen' || sess.dir === 'de-fr'; return { it, ask: fr ? it.w.de : it.w.fr, target: fr ? it.w.fr : it.w.de, frAnswer: fr } }

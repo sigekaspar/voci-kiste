@@ -29,7 +29,8 @@ function makeClient(){
   const C = window.VOCI_CONFIG || {};
   if(!C.url || !C.key || C.url.includes('DEIN-PROJEKT') || C.key.includes('DEIN-')) return { error: 'config' };
   if(!window.supabase || !window.supabase.createClient) return { error: 'lib' };
-  return { sb: window.supabase.createClient(C.url, C.key) };
+  const url = C.url.trim().replace(/\/(rest|auth)\/v1\/?.*$/, '').replace(/\/+$/, '');
+  return { sb: window.supabase.createClient(url, C.key.trim()) };
 }
 function setupMessage(err){
   return err === 'config'

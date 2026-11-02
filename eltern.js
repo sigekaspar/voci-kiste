@@ -47,7 +47,7 @@ async function loadAll(){
     sb.from('kid_state').select('kid_id,cards,stars,streak,last_day,updated_at'),
     sb.from('sessions').select('kid_id,kind,unit_ids,answers,correct,seconds,started_at,ended_at').gte('ended_at', since).order('ended_at', { ascending:false }).limit(2000)
   ]);
-  if(u.error || k.error || s.error || se.error){ toast('Daten konnten nicht vollständig geladen werden.') }
+  const bad = [u, k, s, se].find(r => r.error); if(bad){ console.error(bad.error); toast('Laden fehlgeschlagen: ' + bad.error.message) }
   units = u.data || []; kids = k.data || []; sessions = se.data || [];
   states = {}; (s.data || []).forEach(x => states[x.kid_id] = x);
 }
@@ -132,7 +132,7 @@ function renderWords(){
   v.querySelectorAll('[data-del]').forEach(b => b.onclick = async () => {
     const id = b.dataset.del; if(sure !== id){ sure = id; render(); return } sure = null;
     const { error } = await sb.from('units').delete().eq('id', id);
-    if(error) return toast('Löschen hat nicht geklappt.');
+    if(error){ console.error(error); return toast('Löschen hat nicht geklappt: ' + error.message) }
     units = units.filter(u => u.id !== id); render(); toast('Unité gelöscht');
   });
   const add = $('#add'); if(add) add.onclick = () => { editing = 'new'; render() };
@@ -145,7 +145,7 @@ function renderWords(){
     const old = units.find(u => u.id === editing);
     const row = { id: old ? old.id : 'u-' + Date.now().toString(36), title:$('#ed-t').value.trim(), ord: old ? old.ord : (units.length ? Math.max(...units.map(x => x.ord || 0)) + 1 : 1), words, updated_at:new Date().toISOString() };
     const { error } = await sb.from('units').upsert(row);
-    if(error) return toast('Speichern hat nicht geklappt.');
+    if(error){ console.error(error); return toast('Speichern hat nicht geklappt: ' + error.message) }
     const i = units.findIndex(u => u.id === row.id); i >= 0 ? units[i] = row : units.push(row);
     units.sort((a, b) => a.ord - b.ord); editing = null; render(); toast('Gespeichert');
   };
@@ -181,7 +181,7 @@ function renderKids(){
     const name = $('#kf-name').value.trim(), p = $('#kf-pin').value.trim();
     if(kids.some(k => k.name.toLowerCase() === name.toLowerCase())) return toast('Diesen Namen gibt es schon. Für eine neue PIN «PIN ändern» wählen.');
     const { error } = await sb.rpc('admin_set_kid', { p_name:name, p_pin:p });
-    if(error) return toast(error.message.includes('4 Ziffern') ? 'Die PIN muss aus 4 Ziffern bestehen.' : 'Eintragen hat nicht geklappt.');
+    if(error) return toast(error.message.includes('4 Ziffern') ? 'Die PIN muss aus 4 Ziffern bestehen.' : 'Eintragen hat nicht geklappt: ' + error.message);
     await loadAll(); render(); toast(name + ' eingetragen');
   };
   v.querySelectorAll('[data-pin]').forEach(b => b.onclick = () => { pinEdit = b.dataset.pin; sure = null; render() });
@@ -195,7 +195,7 @@ function renderKids(){
   v.querySelectorAll('[data-delkid]').forEach(b => b.onclick = async () => {
     const id = b.dataset.delkid; if(sure !== id){ sure = id; render(); return } sure = null;
     const { error } = await sb.from('kids').delete().eq('id', id);
-    if(error) return toast('Löschen hat nicht geklappt.');
+    if(error){ console.error(error); return toast('Löschen hat nicht geklappt: ' + error.message) }
     await loadAll(); render(); toast('Gelöscht');
   });
 }

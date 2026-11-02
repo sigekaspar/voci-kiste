@@ -81,6 +81,14 @@ create policy state_admin on public.kid_state for select to authenticated using 
 create policy sess_admin  on public.sessions  for select to authenticated using (public.is_admin());
 -- admins: keine Regel = niemand liest die Tabelle über die Website
 
+-- Freigaben für die Website (seit 30.10.2026 bei Supabase nötig, die Zugriffsregeln oben schützen weiterhin)
+grant usage on schema public to anon, authenticated;
+grant select on public.units to anon, authenticated;
+grant insert, update, delete on public.units to authenticated;
+grant select, insert, update, delete on public.kids to authenticated;
+grant select on public.kid_state to authenticated;
+grant select on public.sessions to authenticated;
+
 -- ---------- Funktionen für die Kinder (Name + PIN) ----------
 create or replace function public._kid(p_name text, p_pin text) returns uuid
 language sql stable security definer set search_path = public, extensions as $$
