@@ -21,13 +21,20 @@ function renderLogin(msg = ''){
   $('#lf').onsubmit = async e => {
     e.preventDefault(); $('#lf-go').disabled = true;
     const { data, error } = await sb.auth.signInWithPassword({ email:$('#lf-mail').value.trim(), password:$('#lf-pw').value });
-    if(error) return renderLogin('E-Mail oder Passwort stimmt nicht.');
+    if(error){
+      console.error(error);
+      const m = error.message || '';
+      return renderLogin(/invalid login credentials/i.test(m) ? 'E-Mail oder Passwort stimmt nicht.'
+        : /email not confirmed/i.test(m) ? 'Die E-Mail ist noch nicht bestätigt. In Supabase beim Benutzer «Confirm email» wählen.'
+        : 'Anmelden fehlgeschlagen: ' + m + (error.status ? ' (' + error.status + ')' : ''));
+    }
     afterLogin(data.session);
   };
 }
 
 async function afterLogin(session){
-  const { data:isAdmin } = await sb.rpc('is_admin');
+  const { data:isAdmin, error:adminErr } = await sb.rpc('is_admin');
+  if(adminErr){ console.error(adminErr); $('#view').innerHTML = `<div class="empty"><h2>Angemeldet, aber Fehler</h2><p>${esc(adminErr.message)}</p><p class="hint">Wurde setup.sql in Supabase ausgeführt?</p></div>`; $('#me').hidden = false; return }
   $('#me').hidden = false; $('#me-mail').textContent = session.user.email;
   if(!isAdmin){
     $('#view').innerHTML = `<div class="empty"><h2>Kein Zugang</h2><p>Die E-Mail <b>${esc(session.user.email)}</b> steht nicht in der Admin-Liste. Im Supabase SQL Editor ausführen:</p><p><code>insert into admins(email) values ('${esc(session.user.email)}');</code></p></div>`;
