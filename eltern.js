@@ -121,14 +121,14 @@ function renderOverview(){
 function renderWords(){
   const v = $('#view');
   const editor = u => `<form class="edit" id="ed"><label class="label" for="ed-t">Name der Unité</label><input id="ed-t" required value="${esc(u?.title || '')}" placeholder="z. B. Unité 1 – À l'école">
-    <label class="label" for="ed-w">Wörter: pro Zeile Französisch ; Deutsch</label>
-    <textarea id="ed-w" placeholder="le cahier ; das Heft&#10;la gomme ; der Radiergummi">${esc((u?.words || []).map(w => w.fr + ' ; ' + w.de).join('\n'))}</textarea>
+    <label class="label" for="ed-w">Wörter: pro Zeile Französisch ; Deutsch ; Beispielsatz (freiwillig)</label>
+    <textarea id="ed-w" placeholder="le cahier ; das Heft&#10;la gomme ; der Radiergummi ; Voilà la gomme.">${esc((u?.words || []).map(w => w.fr + ' ; ' + w.de + (w.ex ? ' ; ' + w.ex : '')).join('\n'))}</textarea>
     <p class="hint">Mehrere richtige Antworten mit / trennen, z. B. «der Schüler / die Schülerin». Auch aus Excel kopierte Spalten (Tabulator) funktionieren.</p>
     <div class="row"><button class="primary" type="submit">Speichern</button><button class="ghost" type="button" id="ed-x">Abbrechen</button></div></form>`;
   v.innerHTML = `<div class="stack-v" style="gap:14px">
     ${units.map(u => `<details class="unit" ${editing === u.id ? 'open' : ''}><summary>${esc(u.title)} <small>${(u.words || []).length} Wörter</small></summary><div class="body">
       ${editing === u.id ? editor(u) : `<div class="tw"><table><thead><tr><th>Français</th><th>Deutsch</th></tr></thead><tbody>
-      ${(u.words || []).map(w => `<tr><td>${hasTTS ? `<button class="mini" data-say="${esc(w.fr)}" aria-label="Anhören">${SPK}</button>` : ''}<b>${esc(w.fr)}</b></td><td>${esc(w.de)}</td></tr>`).join('')}</tbody></table></div>
+      ${(u.words || []).map(w => `<tr><td>${hasTTS ? `<button class="mini" data-say="${esc(w.fr)}" aria-label="Anhören">${SPK}</button>` : ''}<b>${esc(w.fr)}</b>${w.ex ? `<br><span class="ex">${esc(w.ex)}</span>` : ''}</td><td>${esc(w.de)}</td></tr>`).join('')}</tbody></table></div>
       <div class="row"><button class="ghost" data-edit="${esc(u.id)}">Bearbeiten</button><button class="ghost" data-up="${esc(u.id)}" aria-label="Nach oben">↑</button><button class="ghost" data-down="${esc(u.id)}" aria-label="Nach unten">↓</button><button class="danger ${sure === u.id ? 'sure' : ''}" data-del="${esc(u.id)}">${sure === u.id ? 'Wirklich löschen?' : 'Löschen'}</button></div>`}
     </div></details>`).join('')}
     ${editing === 'new' ? `<div class="unit"><div class="body" style="padding-top:16px">${editor(null)}</div></div>` : '<button class="primary" id="add" style="align-self:flex-start">Neue Unité eintragen</button>'}
@@ -147,7 +147,7 @@ function renderWords(){
   $('#ed-x').onclick = () => { editing = null; render() };
   f.onsubmit = async e => {
     e.preventDefault();
-    const words = $('#ed-w').value.split('\n').map(l => l.split(/\s*(?:;|\t|=)\s*/)).filter(p => p.length >= 2 && p[0].trim() && p[1].trim()).map(p => ({ fr:p[0].trim(), de:p.slice(1).filter(Boolean).join(' / ').trim() }));
+    const words = $('#ed-w').value.split('\n').map(l => l.split(/\s*(?:;|\t|=)\s*/)).filter(p => p.length >= 2 && p[0].trim() && p[1].trim()).map(p => { const w = { fr:p[0].trim(), de:p[1].trim() }; const ex = p.slice(2).filter(Boolean).join('; ').trim(); if(ex) w.ex = ex; return w });
     if(!words.length) return toast('Bitte mindestens eine Zeile «Französisch ; Deutsch» eintragen.');
     const old = units.find(u => u.id === editing);
     const row = { id: old ? old.id : 'u-' + Date.now().toString(36), title:$('#ed-t').value.trim(), ord: old ? old.ord : (units.length ? Math.max(...units.map(x => x.ord || 0)) + 1 : 1), words, updated_at:new Date().toISOString() };

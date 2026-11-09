@@ -166,3 +166,5 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
   .pad{grid-template-columns:repeat(3,64px)}
 }
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+.ex{font-size:.9rem;color:var(--muted);font-style:italic}
+.fb .ex{display:flex;align-items:center;gap:4px;color:var(--ink)}

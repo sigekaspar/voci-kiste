@@ -10,12 +10,14 @@ let prog = { cards:{}, stars:0, streak:0, lastDay:'' };
 let pin = '', pinFor = null, pinErr = '';
 
 /* ---------- Prüfen ---------- */
-const norm = s => s.toLowerCase().replace(/[’`´]/g, "'").replace(/\s+/g, ' ').replace(/[.!?…]+$/, '').trim();
+const norm = s => s.toLowerCase().replace(/[’`´]/g, "'").replace(/\.\.\./g, '…').replace(/\s*…\s*/g, ' … ').replace(/\s+([!?])/g, '$1').replace(/\s+/g, ' ').replace(/[.!?]+$/, '').trim();
+// Auch ohne Klammerteil und ohne Klammern gültig: «da (ist)» → «da», «da ist»
+const variants = t => [...new Set([t, t.replace(/\s*\([^)]*\)\s*/g, ' ').trim(), t.replace(/[()]/g, '')])].filter(Boolean);
 const deacc = s => s.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/œ/g, 'oe');
 const noArt = s => s.replace(/^(le |la |les |l'|un |une |des |der |die |das |ein |eine )/, '').trim();
 function check(input, target){
   const a = norm(input); if(!a) return { r:'wrong' };
-  const alts = target.split(/\s*[\/;]\s*/).filter(Boolean);
+  const alts = target.split(/\s*[\/;]\s*/).filter(Boolean).flatMap(variants);
   for(const t of alts) if(a === norm(t)) return { r:'ok', t };
   for(const t of alts) if(deacc(a) === deacc(norm(t))) return { r:'accent', t };
   for(const t of alts){ const n = norm(t); if(noArt(n) !== n && deacc(a) === deacc(noArt(n))) return { r:'article', t } }
@@ -187,7 +189,7 @@ function renderSess(){
     v.innerHTML = `<div class="stack-v" style="gap:16px">${head}<div class="qcard">
       <button class="flip ${s.flip ? 'on' : ''}" id="flip" aria-label="Karte umdrehen"><div class="in">
         <div class="side"><span class="qlang">${s.dir === 'de-fr' ? 'Deutsch' : 'Français'}</span><span class="qword">${esc(s.dir === 'de-fr' ? it.w.de : it.w.fr)}</span><span class="hint">Tippen zum Umdrehen</span></div>
-        <div class="side back"><span class="qlang">${s.dir === 'de-fr' ? 'Français' : 'Deutsch'}</span><span class="qword">${esc(s.dir === 'de-fr' ? it.w.fr : it.w.de)}</span></div>
+        <div class="side back"><span class="qlang">${s.dir === 'de-fr' ? 'Français' : 'Deutsch'}</span><span class="qword">${esc(s.dir === 'de-fr' ? it.w.fr : it.w.de)}</span>${it.w.ex ? `<span class="ex">${esc(it.w.ex)}</span>` : ''}</div>
       </div></button>
       <div class="navrow"><button class="ghost" id="prev" ${s.i ? '' : 'disabled'}>‹ Zurück</button>${hasTTS ? `<button class="speak" id="say" aria-label="Französisch anhören">${SPK}</button>` : ''}<button class="primary" id="next">${s.i === n - 1 ? 'Fertig' : 'Weiter ›'}</button></div>
     </div></div>`;
@@ -214,11 +216,12 @@ function renderSess(){
   let fb = '';
   if(a){
     const T = { ok:['Richtig!',''], accent:['Fast richtig!', `Achte auf die Akzente: <b>${esc(accentDiff(a.input, a.t))}</b>`], article:['Fast! Der Artikel fehlt.', 'Lerne das Wort immer mit le, la oder l\''], wrong:['Leider falsch.','Richtig ist:'] }[a.r];
-    fb = `<div class="fb ${a.r}"><h3>${T[0]}</h3>${T[1] ? `<p>${T[1]}</p>` : ''}${a.r !== 'ok' ? `<p class="sol">${esc(target)}</p>` : ''}${s.how === 'listen' ? `<p>Auf Deutsch: ${esc(it.w.de)}</p>` : ''}<button class="primary" id="next">${s.i === n - 1 ? 'Zum Resultat' : 'Weiter'}</button></div>`;
+    fb = `<div class="fb ${a.r}"><h3>${T[0]}</h3>${T[1] ? `<p>${T[1]}</p>` : ''}${a.r !== 'ok' ? `<p class="sol">${esc(target)}</p>` : ''}${s.how === 'listen' ? `<p>Auf Deutsch: ${esc(it.w.de)}</p>` : ''}${it.w.ex ? `<p class="ex">${hasTTS ? `<button class="mini" id="sayex" aria-label="Beispielsatz anhören">${SPK}</button>` : ''}${esc(it.w.ex)}</p>` : ''}<button class="primary" id="next">${s.i === n - 1 ? 'Zum Resultat' : 'Weiter'}</button></div>`;
   }
   v.innerHTML = `<div class="stack-v" style="gap:16px">${head}<div class="qcard">${prompt}${body}${fb}</div></div>`;
   $('#stop').onclick = () => { s.i = s.items.length; render() };
   const say = $('#say'); if(say) say.onclick = () => speak(it.w.fr);
+  const sx = $('#sayex'); if(sx) sx.onclick = () => speak(it.w.ex);
   if(s.how === 'listen' && !a && !s.spoken){ s.spoken = true; setTimeout(() => speak(it.w.fr), 250) }
   if(s.how === 'choice' && !a) v.querySelectorAll('.choices button').forEach(b => b.onclick = () => { const o = s.opts[+b.dataset.o]; answer(o, o === target ? { r:'ok', t:target } : { r:'wrong', t:target }) });
   if(s.how !== 'choice' && !a){
@@ -272,7 +275,7 @@ function renderWords(){
   if(!units.length){ v.innerHTML = `<div class="empty"><p>Noch keine Wörter eingetragen.</p></div>`; return }
   v.innerHTML = `<div class="stack-v" style="gap:14px">${units.map(u => `<details class="unit" ${sel.has(u.id) ? 'open' : ''}><summary>${esc(u.title)} <small>${(u.words || []).length} Wörter</small></summary><div class="body">
     <div class="tw"><table><thead><tr><th>Français</th><th>Deutsch</th><th>Fach</th></tr></thead><tbody>
-    ${(u.words || []).map(w => { const b = boxOf(u.id + '|' + w.fr); return `<tr><td>${hasTTS ? `<button class="mini" data-say="${esc(w.fr)}" aria-label="Anhören">${SPK}</button>` : ''}<b>${esc(w.fr)}</b></td><td>${esc(w.de)}</td><td><span class="dot" style="${b ? `background:var(--f${b})` : ''}">${b || 'neu'}</span></td></tr>` }).join('')}
+    ${(u.words || []).map(w => { const b = boxOf(u.id + '|' + w.fr); return `<tr><td>${hasTTS ? `<button class="mini" data-say="${esc(w.fr)}" aria-label="Anhören">${SPK}</button>` : ''}<b>${esc(w.fr)}</b>${w.ex ? `<br><span class="ex">${esc(w.ex)}</span>` : ''}</td><td>${esc(w.de)}</td><td><span class="dot" style="${b ? `background:var(--f${b})` : ''}">${b || 'neu'}</span></td></tr>` }).join('')}
     </tbody></table></div></div></details>`).join('')}</div>`;
   v.querySelectorAll('[data-say]').forEach(b => b.onclick = () => speak(b.dataset.say));
 }
