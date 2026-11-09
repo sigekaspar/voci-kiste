@@ -171,3 +171,6 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
 .blank{display:inline-block;min-width:2.2em;border-bottom:3px solid var(--accent);color:var(--accent);text-align:center;margin:0 .1em}
 .rule p{max-width:65ch}
 .fb .sol{display:flex;align-items:center;gap:4px}
+.lvl{display:flex;flex-direction:column;gap:6px}
+.lvl + .lvl{margin-top:6px}
+.lvl-h{font-family:var(--display);font-weight:700;font-size:1rem}

@@ -18,7 +18,7 @@ const deacc = s => s.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/œ/g, 'oe
 const noArt = s => s.replace(/^(le |la |les |l'|un |une |des |der |die |das |ein |eine )/, '').trim();
 function check(input, target){
   const a = norm(input); if(!a) return { r:'wrong' };
-  const alts = target.split(/\s*[\/;,]\s*/).filter(Boolean).flatMap(variants);
+  const alts = splitAlts(target).flatMap(variants);
   for(const t of alts) if(a === norm(t)) return { r:'ok', t };
   for(const t of alts) if(deacc(a) === deacc(norm(t))) return { r:'accent', t };
   for(const t of alts){ const n = norm(t); if(noArt(n) !== n && deacc(a) === deacc(noArt(n))) return { r:'article', t } }
@@ -52,7 +52,7 @@ function touchDay(){ const t = today(); if(prog.lastDay === t) return; prog.stre
 async function init(){
   if(setupErr){ $('#view').innerHTML = setupMessage(setupErr); return }
   dir = ls.get('vk-dir', 'de-fr'); how = ls.get('vk-how', 'write');
-  const { data, error } = await sb.from('units').select('id,title,ord,words,grammar').order('ord').order('title');
+  const { data, error } = await sb.from('units').select('id,title,ord,level,words,grammar').order('ord').order('title');
   if(error){ console.error(error); $('#view').innerHTML = `<div class="empty"><h2>Keine Verbindung</h2><p>Die Wörter konnten nicht geladen werden: ${esc(error.message)}</p></div>`; return }
   units = data || [];
   if(kid) await login(kid.name, kid.pin, true); else renderWho();
@@ -101,7 +101,7 @@ async function login(name, p, silent){
   const local = ls.get(progKey(), null);
   if(local && local.lastDay && (!prog.lastDay || local.lastDay > prog.lastDay)){ prog = local; unsaved = true; flush() }
   sel = new Set(ls.get('vk-sel-' + kid.name.toLowerCase(), []).filter(id => units.some(u => u.id === id)));
-  if(!sel.size && units.length) sel.add(units[0].id);
+  const firstW = units.find(u => (u.words || []).length); if(!sel.size && firstW) sel.add(firstW.id);
   view = 'home'; sess = null; render();
   return true;
 }
@@ -124,13 +124,14 @@ function render(){
 
 function renderHome(){
   const v = $('#view');
-  if(!units.length){ v.innerHTML = `<div class="empty"><h2>Noch keine Wörter</h2><p>Die Eltern tragen die Wörter auf der Elternseite ein.</p></div>`; return }
+  const wu = units.filter(u => (u.words || []).length);
+  if(!wu.length){ v.innerHTML = `<div class="empty"><h2>Noch keine Wörter</h2><p>Die Eltern tragen die Wörter auf der Elternseite ein.</p></div>`; return }
   const ws = allWords(sel), counts = [0,0,0,0,0,0];
   ws.forEach(x => counts[boxOf(x.key)]++);
   const due = ws.filter(x => isDue(x.key)).length, max = Math.max(1, ...counts);
   v.innerHTML = `<div class="stack-v">
   <section><span class="label">Welche Unité?</span>
-    <div class="chips">${units.map(u => `<button class="chip" data-u="${esc(u.id)}" aria-pressed="${sel.has(u.id)}">${esc(u.title)}<span>${(u.words || []).length} Wörter</span></button>`).join('')}</div>
+    ${byLevel(wu).map(([lv, us]) => `<div class="lvl"><span class="lvl-h">${esc(lv)}</span><div class="chips">${us.map(u => `<button class="chip" data-u="${esc(u.id)}" aria-pressed="${sel.has(u.id)}">${esc(u.title)}<span>${(u.words || []).length} Wörter</span></button>`).join('')}</div></div>`).join('')}
   </section>
   <section><span class="label">Dein Karteikasten</span>
     <div class="panel">
@@ -276,7 +277,7 @@ function renderResult(){
 
 /* ---------- Grammatik ---------- */
 const gUnits = () => units.filter(u => u.grammar && (u.grammar.rules?.length || u.grammar.tasks?.length));
-const filled = t => t.q.includes('___') ? t.q.replace('___', t.a) : t.a;
+const filled = t => t.t === 'l' ? (t.say === t.a ? t.say : t.say + ' → ' + t.a) : t.q.includes('___') ? t.q.replace('___', t.a) : t.a;
 const blank = q => esc(q).replace('___', '<span class="blank">?</span>');
 
 function renderGram(){
@@ -286,12 +287,12 @@ function renderGram(){
   const u = gu.find(x => x.id === gUnit), g = u.grammar, n = (g.tasks || []).length;
   v.innerHTML = `<div class="stack-v">
     <section><span class="label">Welche Unité?</span>
-      <div class="chips">${gu.map(x => `<button class="chip" data-g="${esc(x.id)}" aria-pressed="${x.id === gUnit}">${esc(x.title)}<span>${(x.grammar.rules || []).map(r => esc(r.h)).join(' · ')}</span></button>`).join('')}</div>
+      ${byLevel(gu).map(([lv, us]) => `<div class="lvl"><span class="lvl-h">${esc(lv)}</span><div class="chips">${us.map(x => `<button class="chip" data-g="${esc(x.id)}" aria-pressed="${x.id === gUnit}">${esc(x.title)}<span>${(x.grammar.rules || []).map(r => esc(r.h)).join(' · ')}</span></button>`).join('')}</div></div>`).join('')}
     </section>
     ${(g.rules || []).map(r => `<article class="panel rule"><h2>${esc(r.h)}</h2><p>${esc(r.text)}</p>
       ${r.ex?.length ? `<div class="tw"><table><tbody>${r.ex.map(([fr, de]) => `<tr><td>${hasTTS ? `<button class="mini" data-say="${esc(fr.replace(/[→·]/g, ','))}" aria-label="Anhören">${SPK}</button>` : ''}<b>${esc(fr)}</b></td><td>${esc(de)}</td></tr>`).join('')}</tbody></table></div>` : ''}
       ${r.more ? `<p class="hint">${esc(r.more)}</p>` : ''}</article>`).join('')}
-    ${n ? `<section class="actions" style="grid-template-columns:1fr"><button class="act main" id="go-gram"><strong>Grammatik üben</strong><span>${Math.min(10, n)} Aufgaben zu ${esc(u.title)}</span></button></section>` : ''}
+    ${n ? `<section class="actions" style="grid-template-columns:1fr"><button class="act main" id="go-gram"><strong>Grammatik üben</strong><span>${Math.min(10, n)} Aufgaben zu ${esc(uname(u))}</span></button></section>` : ''}
   </div>`;
   v.querySelectorAll('[data-g]').forEach(b => b.onclick = () => { gUnit = b.dataset.g; ls.set('vk-gunit', gUnit); render() });
   v.querySelectorAll('[data-say]').forEach(b => b.onclick = () => speak(b.dataset.say));
@@ -300,7 +301,7 @@ function renderGram(){
 
 function startGram(){
   const u = gUnits().find(x => x.id === gUnit); if(!u) return;
-  const items = shuffle((u.grammar.tasks || []).slice()).slice(0, 10).map(t => ({ g:t, w:{ fr:filled(t), de:t.de || '' }, key:'g|' + u.id }));
+  const items = shuffle((u.grammar.tasks || []).filter(t => hasTTS || t.t !== 'l')).slice(0, 10).map(t => ({ g:t, w:{ fr:filled(t), de:t.de || '' }, key:'g|' + u.id }));
   const now = Date.now();
   sess = { kind:'grammar', items, i:0, res:[], requeued:new Set(), answered:null, units:[u.id], startedAt:new Date(now).toISOString(), last:now, secs:0, steps:0, logged:false };
   render(); window.scrollTo({ top:0 });
@@ -308,14 +309,17 @@ function startGram(){
 
 function renderGramQ(head){
   const v = $('#view'), s = sess, n = s.items.length, it = s.items[s.i], t = it.g, a = s.answered;
-  const prompt = t.t === 'w'
+  const prompt = t.t === 'l'
+    ? `<span class="qlang">Hör gut zu</span><button class="speak big" id="sayq" aria-label="Nochmals anhören">${SPK}</button>`
+    : t.t === 'w'
     ? `<span class="qlang">Schreib die richtige Form</span><span class="qword">${esc(t.q)}</span>`
     : `<span class="qlang">Was passt?</span><span class="qword">${blank(t.q)}</span>`;
+  const write = t.t === 'w' || (t.t === 'l' && !t.choices);
   const hint = t.de ? `<p class="hint">${esc(t.de)}</p>` : '';
   let body;
-  if(t.t === 'w'){
+  if(write){
     body = `<form class="answer" id="f" autocomplete="off"><input id="inp" aria-label="Antwort" autocapitalize="off" autocorrect="off" spellcheck="false" ${a ? 'readonly' : ''} value="${esc(a ? a.input : '')}">
-      ${!a ? `<div class="accents">${ACC.map(c => `<button type="button" data-c="${esc(c)}">${esc(c)}</button>`).join('')}</div><button class="primary" type="submit">Prüfen</button>` : ''}</form>`;
+      ${!a && !/^[0-9]+$/.test(t.a) ? `<div class="accents">${ACC.map(c => `<button type="button" data-c="${esc(c)}">${esc(c)}</button>`).join('')}</div>` : ''}${!a ? '<button class="primary" type="submit">Prüfen</button>' : ''}</form>`;
   } else {
     body = `<div class="choices">${t.choices.map((o, i) => `<button data-o="${i}" ${a ? 'disabled' : ''} class="${a ? (o === t.a ? 'right' : (a.input === o ? 'wrong' : '')) : ''}">${esc(o.trim())}</button>`).join('')}</div>`;
   }
@@ -326,21 +330,24 @@ function renderGramQ(head){
   }
   v.innerHTML = `<div class="stack-v" style="gap:16px">${head}<div class="qcard">${prompt}${a ? '' : hint}${body}${fb}</div></div>`;
   $('#stop').onclick = () => { s.i = s.items.length; render() };
-  const ss = $('#saysol'); if(ss) ss.onclick = () => speak(it.w.fr);
-  if(!a && t.t === 'w'){
-    const inp = $('#inp'); inp.focus();
+  const ss = $('#saysol'); if(ss) ss.onclick = () => speak(t.t === 'l' ? t.say : it.w.fr);
+  const sq = $('#sayq'); if(sq) sq.onclick = () => speak(t.say);
+  if(t.t === 'l' && !a && !s.spoken){ s.spoken = true; setTimeout(() => speak(t.say), 250) }
+  if(!a && write){
+    const inp = $('#inp'); if(/^[0-9]+$/.test(t.a)) inp.inputMode = 'numeric'; inp.focus();
     v.querySelectorAll('.accents button').forEach(b => b.onclick = () => { const p = inp.selectionStart ?? inp.value.length; inp.value = inp.value.slice(0, p) + b.dataset.c + inp.value.slice(inp.selectionEnd ?? p); inp.focus(); inp.setSelectionRange(p + 1, p + 1) });
     $('#f').onsubmit = e => { e.preventDefault(); if(!inp.value.trim()){ inp.focus(); return } const c = check(inp.value, t.a); answer(inp.value, c.r === 'article' ? { r:'wrong', t:t.a } : c) };
   }
-  if(!a && t.t === 'c') v.querySelectorAll('.choices button').forEach(b => b.onclick = () => { const o = t.choices[+b.dataset.o]; answer(o, o === t.a ? { r:'ok', t:t.a } : { r:'wrong', t:t.a }) });
-  const nx = $('#next'); if(nx){ nx.focus(); nx.onclick = () => { s.i++; s.answered = null; render() } }
+  if(!a && !write) v.querySelectorAll('.choices button').forEach(b => b.onclick = () => { const o = t.choices[+b.dataset.o]; answer(o, o === t.a ? { r:'ok', t:t.a } : { r:'wrong', t:t.a }) });
+  const nx = $('#next'); if(nx){ nx.focus(); nx.onclick = () => { s.i++; s.answered = null; s.spoken = false; render() } }
 }
 
 /* ---------- Wörter (nur anschauen) ---------- */
 function renderWords(){
   const v = $('#view');
-  if(!units.length){ v.innerHTML = `<div class="empty"><p>Noch keine Wörter eingetragen.</p></div>`; return }
-  v.innerHTML = `<div class="stack-v" style="gap:14px">${units.map(u => `<details class="unit" ${sel.has(u.id) ? 'open' : ''}><summary>${esc(u.title)} <small>${(u.words || []).length} Wörter</small></summary><div class="body">
+  const wu = units.filter(u => (u.words || []).length);
+  if(!wu.length){ v.innerHTML = `<div class="empty"><p>Noch keine Wörter eingetragen.</p></div>`; return }
+  v.innerHTML = `<div class="stack-v" style="gap:14px">${wu.map(u => `<details class="unit" ${sel.has(u.id) ? 'open' : ''}><summary>${esc(uname(u))} <small>${(u.words || []).length} Wörter</small></summary><div class="body">
     <div class="tw"><table><thead><tr><th>Français</th><th>Deutsch</th><th>Fach</th></tr></thead><tbody>
     ${(u.words || []).map(w => { const b = boxOf(u.id + '|' + w.fr); return `<tr><td>${hasTTS ? `<button class="mini" data-say="${esc(w.fr)}" aria-label="Anhören">${SPK}</button>` : ''}<b>${esc(w.fr)}</b>${w.ex ? `<br><span class="ex">${esc(w.ex)}</span>` : ''}</td><td>${esc(w.de)}</td><td><span class="dot" style="${b ? `background:var(--f${b})` : ''}">${b || 'neu'}</span></td></tr>` }).join('')}
     </tbody></table></div></div></details>`).join('')}</div>`;

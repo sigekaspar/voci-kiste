@@ -51,6 +51,7 @@ create table if not exists public.sessions (
 create index if not exists sessions_kid_time on public.sessions(kid_id, ended_at desc);
 
 alter table public.units add column if not exists grammar jsonb;
+alter table public.units add column if not exists level text;   -- CR3 = Ça roule 3, CR4 = Ça roule 4
 
 -- ---------- Wer ist Admin (Eltern)? ----------
 -- >>> Hier Ihre E-Mail eintragen (dieselbe wie beim Supabase-Benutzer) <<<

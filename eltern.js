@@ -49,7 +49,7 @@ document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => { tab =
 async function loadAll(){
   const since = new Date(Date.now() - 60 * 864e5).toISOString();
   const [u, k, s, se] = await Promise.all([
-    sb.from('units').select('id,title,ord,words').order('ord').order('title'),
+    sb.from('units').select('id,title,ord,level,words').order('ord').order('title'),
     sb.from('kids').select('id,name,created_at').order('name'),
     sb.from('kid_state').select('kid_id,cards,stars,streak,last_day,updated_at'),
     sb.from('sessions').select('kid_id,kind,unit_ids,answers,correct,seconds,started_at,ended_at').gte('ended_at', since).order('ended_at', { ascending:false }).limit(2000)
@@ -99,11 +99,11 @@ function renderOverview(){
       </section>
       <section><span class="label">Karteikasten pro Unité</span>
         ${units.length ? `<div class="tw"><table><thead><tr><th>Unité</th><th style="width:40%">Fächer</th><th class="num">sitzt</th><th class="num">fällig</th></tr></thead><tbody>
-        ${units.map(u => {
+        ${units.filter(u => (u.words || []).length).map(u => {
           const ws = (u.words || []).filter(w => w.fr && w.de), c = [0,0,0,0,0,0]; let due = 0;
           ws.forEach(w => { const card = st.cards?.[u.id + '|' + w.fr]; c[card?.box || 0]++; if(card && card.due <= today()) due++ });
           const n = ws.length || 1;
-          return `<tr><td>${esc(u.title)}</td><td><div class="boxbar" title="${c.map((x, i) => FACH[i].n + ': ' + x).join(' · ')}">${c.map((x, i) => x ? `<i style="width:${x / n * 100}%;background:var(--f${i})"></i>` : '').join('')}</div></td><td class="num">${c[5]} / ${ws.length}</td><td class="num">${due}</td></tr>`;
+          return `<tr><td>${esc(uname(u))}</td><td><div class="boxbar" title="${c.map((x, i) => FACH[i].n + ': ' + x).join(' · ')}">${c.map((x, i) => x ? `<i style="width:${x / n * 100}%;background:var(--f${i})"></i>` : '').join('')}</div></td><td class="num">${c[5]} / ${ws.length}</td><td class="num">${due}</td></tr>`;
         }).join('')}</tbody></table></div>
         <div class="legend">${FACH.map((f, i) => `<span><i style="background:var(--f${i})"></i>${f.n}</span>`).join('')}</div>` : '<p class="hint">Noch keine Wörter.</p>'}
       </section>
@@ -120,13 +120,14 @@ function renderOverview(){
 /* ---------- Wörter ---------- */
 function renderWords(){
   const v = $('#view');
-  const editor = u => `<form class="edit" id="ed"><label class="label" for="ed-t">Name der Unité</label><input id="ed-t" required value="${esc(u?.title || '')}" placeholder="z. B. Unité 1 – À l'école">
+  const editor = u => `<form class="edit" id="ed"><label class="label" for="ed-t">Name der Unité</label><input id="ed-t" required value="${esc(u?.title || '')}" placeholder="z. B. Unité 5">
+    <label class="label" for="ed-l">Klasse</label><select class="field" id="ed-l">${Object.entries(LEVELS).map(([k, n]) => `<option value="${k}" ${(u?.level || 'CR4') === k ? 'selected' : ''}>${n}</option>`).join('')}<option value="" ${u && !u.level ? 'selected' : ''}>andere</option></select>
     <label class="label" for="ed-w">Wörter: pro Zeile Französisch ; Deutsch ; Beispielsatz (freiwillig)</label>
     <textarea id="ed-w" placeholder="le cahier ; das Heft&#10;la gomme ; der Radiergummi ; Voilà la gomme.">${esc((u?.words || []).map(w => w.fr + ' ; ' + w.de + (w.ex ? ' ; ' + w.ex : '')).join('\n'))}</textarea>
     <p class="hint">Mehrere richtige Antworten mit / trennen, z. B. «der Schüler / die Schülerin». Auch aus Excel kopierte Spalten (Tabulator) funktionieren.</p>
     <div class="row"><button class="primary" type="submit">Speichern</button><button class="ghost" type="button" id="ed-x">Abbrechen</button></div></form>`;
   v.innerHTML = `<div class="stack-v" style="gap:14px">
-    ${units.map(u => `<details class="unit" ${editing === u.id ? 'open' : ''}><summary>${esc(u.title)} <small>${(u.words || []).length} Wörter</small></summary><div class="body">
+    ${units.map(u => `<details class="unit" ${editing === u.id ? 'open' : ''}><summary>${esc(uname(u))} <small>${(u.words || []).length ? (u.words || []).length + ' Wörter' : 'nur Grammatik'}</small></summary><div class="body">
       ${editing === u.id ? editor(u) : `<div class="tw"><table><thead><tr><th>Français</th><th>Deutsch</th></tr></thead><tbody>
       ${(u.words || []).map(w => `<tr><td>${hasTTS ? `<button class="mini" data-say="${esc(w.fr)}" aria-label="Anhören">${SPK}</button>` : ''}<b>${esc(w.fr)}</b>${w.ex ? `<br><span class="ex">${esc(w.ex)}</span>` : ''}</td><td>${esc(w.de)}</td></tr>`).join('')}</tbody></table></div>
       <div class="row"><button class="ghost" data-edit="${esc(u.id)}">Bearbeiten</button><button class="ghost" data-up="${esc(u.id)}" aria-label="Nach oben">↑</button><button class="ghost" data-down="${esc(u.id)}" aria-label="Nach unten">↓</button><button class="danger ${sure === u.id ? 'sure' : ''}" data-del="${esc(u.id)}">${sure === u.id ? 'Wirklich löschen?' : 'Löschen'}</button></div>`}
@@ -150,7 +151,7 @@ function renderWords(){
     const words = $('#ed-w').value.split('\n').map(l => l.split(/\s*(?:;|\t|=)\s*/)).filter(p => p.length >= 2 && p[0].trim() && p[1].trim()).map(p => { const w = { fr:p[0].trim(), de:p[1].trim() }; const ex = p.slice(2).filter(Boolean).join('; ').trim(); if(ex) w.ex = ex; return w });
     if(!words.length) return toast('Bitte mindestens eine Zeile «Französisch ; Deutsch» eintragen.');
     const old = units.find(u => u.id === editing);
-    const row = { id: old ? old.id : 'u-' + Date.now().toString(36), title:$('#ed-t').value.trim(), ord: old ? old.ord : (units.length ? Math.max(...units.map(x => x.ord || 0)) + 1 : 1), words, updated_at:new Date().toISOString() };
+    const row = { id: old ? old.id : 'u-' + Date.now().toString(36), title:$('#ed-t').value.trim(), level:$('#ed-l').value || null, ord: old ? old.ord : (units.length ? Math.max(...units.map(x => x.ord || 0)) + 1 : 1), words, updated_at:new Date().toISOString() };
     const { error } = await sb.from('units').upsert(row);
     if(error){ console.error(error); return toast('Speichern hat nicht geklappt: ' + error.message) }
     const i = units.findIndex(u => u.id === row.id); i >= 0 ? units[i] = row : units.push(row);
