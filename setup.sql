@@ -17,6 +17,7 @@ create table if not exists public.units (
   title      text not null,
   ord        int  not null default 0,
   words      jsonb not null default '[]'::jsonb,   -- [{ "fr": "...", "de": "..." }]
+  grammar    jsonb,                                -- { rules:[...], tasks:[...] }
   updated_at timestamptz not null default now()
 );
 
@@ -48,6 +49,8 @@ create table if not exists public.sessions (
   ended_at   timestamptz not null default now()
 );
 create index if not exists sessions_kid_time on public.sessions(kid_id, ended_at desc);
+
+alter table public.units add column if not exists grammar jsonb;
 
 -- ---------- Wer ist Admin (Eltern)? ----------
 -- >>> Hier Ihre E-Mail eintragen (dieselbe wie beim Supabase-Benutzer) <<<

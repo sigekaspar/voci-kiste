@@ -8,6 +8,7 @@ let kid = ls.get('vk-kid', null);       // { name, pin }
 let units = [], sel = new Set(), dir = 'de-fr', how = 'write', view = 'home', sess = null;
 let prog = { cards:{}, stars:0, streak:0, lastDay:'' };
 let pin = '', pinFor = null, pinErr = '';
+let gUnit = ls.get('vk-gunit', null);
 
 /* ---------- Prüfen ---------- */
 const norm = s => s.toLowerCase().replace(/[’`´]/g, "'").replace(/\.\.\./g, '…').replace(/\s*…\s*/g, ' … ').replace(/\s+([!?])/g, '$1').replace(/\s+/g, ' ').replace(/[.!?]+$/, '').trim();
@@ -17,7 +18,7 @@ const deacc = s => s.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/œ/g, 'oe
 const noArt = s => s.replace(/^(le |la |les |l'|un |une |des |der |die |das |ein |eine )/, '').trim();
 function check(input, target){
   const a = norm(input); if(!a) return { r:'wrong' };
-  const alts = target.split(/\s*[\/;]\s*/).filter(Boolean).flatMap(variants);
+  const alts = target.split(/\s*[\/;,]\s*/).filter(Boolean).flatMap(variants);
   for(const t of alts) if(a === norm(t)) return { r:'ok', t };
   for(const t of alts) if(deacc(a) === deacc(norm(t))) return { r:'accent', t };
   for(const t of alts){ const n = norm(t); if(noArt(n) !== n && deacc(a) === deacc(noArt(n))) return { r:'article', t } }
@@ -51,7 +52,7 @@ function touchDay(){ const t = today(); if(prog.lastDay === t) return; prog.stre
 async function init(){
   if(setupErr){ $('#view').innerHTML = setupMessage(setupErr); return }
   dir = ls.get('vk-dir', 'de-fr'); how = ls.get('vk-how', 'write');
-  const { data, error } = await sb.from('units').select('id,title,ord,words').order('ord').order('title');
+  const { data, error } = await sb.from('units').select('id,title,ord,words,grammar').order('ord').order('title');
   if(error){ console.error(error); $('#view').innerHTML = `<div class="empty"><h2>Keine Verbindung</h2><p>Die Wörter konnten nicht geladen werden: ${esc(error.message)}</p></div>`; return }
   units = data || [];
   if(kid) await login(kid.name, kid.pin, true); else renderWho();
@@ -109,15 +110,16 @@ $('#logout').onclick = async () => { await flush(); ls.del('vk-kid'); kid = null
 function showChrome(on){ $('#stats').hidden = !on; $('#tabs').hidden = !on; if(on) $('#logout').textContent = kid.name + ' · Abmelden' }
 
 /* ---------- Ansichten ---------- */
-function setTab(t){ if(sess) endSession(); view = t; sess = null; $('#tab-home').setAttribute('aria-selected', t === 'home'); $('#tab-words').setAttribute('aria-selected', t === 'words'); render() }
-$('#tab-home').onclick = () => setTab('home'); $('#tab-words').onclick = () => setTab('words');
+const TABS = { home:'#tab-home', gram:'#tab-gram', words:'#tab-words' };
+function setTab(t){ if(sess) endSession(); view = t; sess = null; for(const [k, id] of Object.entries(TABS)) $(id).setAttribute('aria-selected', k === t); render() }
+for(const [k, id] of Object.entries(TABS)) $(id).onclick = () => setTab(k);
 
 function render(){
   showChrome(true);
   $('#stars').textContent = prog.stars || 0;
   $('#streak').textContent = (prog.lastDay === today() || prog.lastDay === today(-1)) ? (prog.streak || 0) : 0;
   if(sess) return renderSess();
-  view === 'words' ? renderWords() : renderHome();
+  view === 'words' ? renderWords() : view === 'gram' ? renderGram() : renderHome();
 }
 
 function renderHome(){
@@ -158,6 +160,7 @@ function renderHome(){
 
 /* ---------- Runde ---------- */
 function start(kind){
+  if(kind === 'grammar') return startGram();
   const ws = allWords(sel); let items;
   if(kind === 'practice'){
     const due = ws.filter(x => isDue(x.key)).sort((a, b) => boxOf(a.key) - boxOf(b.key) || Math.random() - .5);
@@ -183,7 +186,8 @@ function q(){ const it = sess.items[sess.i]; const fr = sess.how === 'listen' ||
 function renderSess(){
   const v = $('#view'), s = sess, n = s.items.length;
   if(s.i >= n) return renderResult();
-  const head = `<div class="sesshead"><span class="label">${s.kind === 'learn' ? 'Anschauen' : s.kind === 'test' ? 'Test' : 'Üben'} · ${s.i + 1} / ${n}</span><button class="ghost" id="stop">Beenden</button></div><div class="bar"><i style="width:${s.i / n * 100}%"></i></div>`;
+  const head = `<div class="sesshead"><span class="label">${({ learn:'Anschauen', test:'Test', grammar:'Grammatik' })[s.kind] || 'Üben'} · ${s.i + 1} / ${n}</span><button class="ghost" id="stop">Beenden</button></div><div class="bar"><i style="width:${s.i / n * 100}%"></i></div>`;
+  if(s.kind === 'grammar') return renderGramQ(head);
   const { it, ask, target, frAnswer } = q();
   if(s.kind === 'learn'){
     v.innerHTML = `<div class="stack-v" style="gap:16px">${head}<div class="qcard">
@@ -267,6 +271,69 @@ function renderResult(){
     <div class="row"><button class="primary" id="home">Zum Karteikasten</button><button class="ghost" id="more">Nochmals</button></div></div>`;
   $('#home').onclick = () => { sess = null; render() };
   $('#more').onclick = () => start(s.kind);
+}
+
+
+/* ---------- Grammatik ---------- */
+const gUnits = () => units.filter(u => u.grammar && (u.grammar.rules?.length || u.grammar.tasks?.length));
+const filled = t => t.q.includes('___') ? t.q.replace('___', t.a) : t.a;
+const blank = q => esc(q).replace('___', '<span class="blank">?</span>');
+
+function renderGram(){
+  const v = $('#view'), gu = gUnits();
+  if(!gu.length){ v.innerHTML = `<div class="empty"><h2>Noch keine Grammatik</h2><p>Die Eltern tragen die Grammatik pro Unité ein.</p></div>`; return }
+  if(!gu.some(u => u.id === gUnit)) gUnit = gu[0].id;
+  const u = gu.find(x => x.id === gUnit), g = u.grammar, n = (g.tasks || []).length;
+  v.innerHTML = `<div class="stack-v">
+    <section><span class="label">Welche Unité?</span>
+      <div class="chips">${gu.map(x => `<button class="chip" data-g="${esc(x.id)}" aria-pressed="${x.id === gUnit}">${esc(x.title)}<span>${(x.grammar.rules || []).map(r => esc(r.h)).join(' · ')}</span></button>`).join('')}</div>
+    </section>
+    ${(g.rules || []).map(r => `<article class="panel rule"><h2>${esc(r.h)}</h2><p>${esc(r.text)}</p>
+      ${r.ex?.length ? `<div class="tw"><table><tbody>${r.ex.map(([fr, de]) => `<tr><td>${hasTTS ? `<button class="mini" data-say="${esc(fr.replace(/[→·]/g, ','))}" aria-label="Anhören">${SPK}</button>` : ''}<b>${esc(fr)}</b></td><td>${esc(de)}</td></tr>`).join('')}</tbody></table></div>` : ''}
+      ${r.more ? `<p class="hint">${esc(r.more)}</p>` : ''}</article>`).join('')}
+    ${n ? `<section class="actions" style="grid-template-columns:1fr"><button class="act main" id="go-gram"><strong>Grammatik üben</strong><span>${Math.min(10, n)} Aufgaben zu ${esc(u.title)}</span></button></section>` : ''}
+  </div>`;
+  v.querySelectorAll('[data-g]').forEach(b => b.onclick = () => { gUnit = b.dataset.g; ls.set('vk-gunit', gUnit); render() });
+  v.querySelectorAll('[data-say]').forEach(b => b.onclick = () => speak(b.dataset.say));
+  const go = $('#go-gram'); if(go) go.onclick = () => start('grammar');
+}
+
+function startGram(){
+  const u = gUnits().find(x => x.id === gUnit); if(!u) return;
+  const items = shuffle((u.grammar.tasks || []).slice()).slice(0, 10).map(t => ({ g:t, w:{ fr:filled(t), de:t.de || '' }, key:'g|' + u.id }));
+  const now = Date.now();
+  sess = { kind:'grammar', items, i:0, res:[], requeued:new Set(), answered:null, units:[u.id], startedAt:new Date(now).toISOString(), last:now, secs:0, steps:0, logged:false };
+  render(); window.scrollTo({ top:0 });
+}
+
+function renderGramQ(head){
+  const v = $('#view'), s = sess, n = s.items.length, it = s.items[s.i], t = it.g, a = s.answered;
+  const prompt = t.t === 'w'
+    ? `<span class="qlang">Schreib die richtige Form</span><span class="qword">${esc(t.q)}</span>`
+    : `<span class="qlang">Was passt?</span><span class="qword">${blank(t.q)}</span>`;
+  const hint = t.de ? `<p class="hint">${esc(t.de)}</p>` : '';
+  let body;
+  if(t.t === 'w'){
+    body = `<form class="answer" id="f" autocomplete="off"><input id="inp" aria-label="Antwort" autocapitalize="off" autocorrect="off" spellcheck="false" ${a ? 'readonly' : ''} value="${esc(a ? a.input : '')}">
+      ${!a ? `<div class="accents">${ACC.map(c => `<button type="button" data-c="${esc(c)}">${esc(c)}</button>`).join('')}</div><button class="primary" type="submit">Prüfen</button>` : ''}</form>`;
+  } else {
+    body = `<div class="choices">${t.choices.map((o, i) => `<button data-o="${i}" ${a ? 'disabled' : ''} class="${a ? (o === t.a ? 'right' : (a.input === o ? 'wrong' : '')) : ''}">${esc(o.trim())}</button>`).join('')}</div>`;
+  }
+  let fb = '';
+  if(a){
+    const T = { ok:'Richtig!', accent:'Fast richtig! Achte auf die Akzente.', article:'Fast!', wrong:'Leider falsch.' }[a.r];
+    fb = `<div class="fb ${a.r}"><h3>${T}</h3><p class="sol">${hasTTS ? `<button class="mini" id="saysol" aria-label="Anhören">${SPK}</button>` : ''}${esc(it.w.fr)}</p>${t.de ? `<p>${esc(t.de)}</p>` : ''}<button class="primary" id="next">${s.i === n - 1 ? 'Zum Resultat' : 'Weiter'}</button></div>`;
+  }
+  v.innerHTML = `<div class="stack-v" style="gap:16px">${head}<div class="qcard">${prompt}${a ? '' : hint}${body}${fb}</div></div>`;
+  $('#stop').onclick = () => { s.i = s.items.length; render() };
+  const ss = $('#saysol'); if(ss) ss.onclick = () => speak(it.w.fr);
+  if(!a && t.t === 'w'){
+    const inp = $('#inp'); inp.focus();
+    v.querySelectorAll('.accents button').forEach(b => b.onclick = () => { const p = inp.selectionStart ?? inp.value.length; inp.value = inp.value.slice(0, p) + b.dataset.c + inp.value.slice(inp.selectionEnd ?? p); inp.focus(); inp.setSelectionRange(p + 1, p + 1) });
+    $('#f').onsubmit = e => { e.preventDefault(); if(!inp.value.trim()){ inp.focus(); return } const c = check(inp.value, t.a); answer(inp.value, c.r === 'article' ? { r:'wrong', t:t.a } : c) };
+  }
+  if(!a && t.t === 'c') v.querySelectorAll('.choices button').forEach(b => b.onclick = () => { const o = t.choices[+b.dataset.o]; answer(o, o === t.a ? { r:'ok', t:t.a } : { r:'wrong', t:t.a }) });
+  const nx = $('#next'); if(nx){ nx.focus(); nx.onclick = () => { s.i++; s.answered = null; render() } }
 }
 
 /* ---------- Wörter (nur anschauen) ---------- */

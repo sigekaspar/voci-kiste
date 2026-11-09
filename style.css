@@ -168,3 +168,6 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 .ex{font-size:.9rem;color:var(--muted);font-style:italic}
 .fb .ex{display:flex;align-items:center;gap:4px;color:var(--ink)}
+.blank{display:inline-block;min-width:2.2em;border-bottom:3px solid var(--accent);color:var(--accent);text-align:center;margin:0 .1em}
+.rule p{max-width:65ch}
+.fb .sol{display:flex;align-items:center;gap:4px}

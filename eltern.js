@@ -3,7 +3,7 @@ const { sb, error: setupErr } = makeClient();
 let tab = 'overview', units = [], kids = [], states = {}, sessions = [];
 let editing = null, sure = null, pinEdit = null;
 const WD = ['So','Mo','Di','Mi','Do','Fr','Sa'];
-const KIND = { practice:'Üben', test:'Test', learn:'Anschauen' };
+const KIND = { practice:'Üben', test:'Test', learn:'Anschauen', grammar:'Grammatik' };
 
 async function init(){
   if(setupErr){ $('#view').innerHTML = setupMessage(setupErr); return }
