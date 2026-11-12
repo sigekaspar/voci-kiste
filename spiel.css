@@ -219,4 +219,19 @@ canvas{image-rendering:pixelated;image-rendering:crisp-edges}
 .cookie.hint{outline:4px solid var(--mint);outline-offset:2px}
 @keyframes nope{25%{transform:translateX(-6px) rotate(-8deg)}75%{transform:translateX(6px) rotate(8deg)}}
 
+
+/* Modus-Auswahl */
+.modetabs{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.modetabs button{display:flex;align-items:center;justify-content:center;gap:6px;font-family:var(--pixel);font-weight:700;font-size:1rem;border:3px solid var(--ink);border-radius:6px;background:var(--paper);box-shadow:0 3px 0 var(--ink);padding:6px 4px;min-width:0}
+.modetabs button[aria-pressed="true"]{background:var(--honey)}
+.modetabs canvas{width:32px;height:32px;flex:0 0 auto}
+.lvlinfo{font-size:.78rem;color:var(--muted);padding:0 12px 12px;margin:0}
+.skgroup{font-size:1.2rem;margin:6px 2px -2px;color:var(--ink)}
+.race{display:grid;grid-template-columns:1fr 1fr;gap:10px;font-family:var(--pixel);font-weight:700}
+.race > div{display:flex;flex-direction:column;gap:3px}
+.race .hp{height:14px;background:#e8d9c4;border:3px solid var(--ink);border-radius:4px;overflow:hidden}
+.race .hp i{display:block;height:100%;background:var(--mint);transition:width .3s}
+.race .hp.rival i{background:var(--berry)}
+@media (max-width:420px){ .modetabs button{flex-direction:column;font-size:.85rem;gap:2px} }
+
 @media (max-width:560px){ .hud{gap:5px} .hud-btn{font-size:.85rem;padding:3px 6px} .xp{width:64px} .mapgoals{grid-template-columns:1fr} .hud-me canvas{width:24px;height:30px} }

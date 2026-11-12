@@ -25,15 +25,23 @@ const EBENEN = [
 ];
 // Kräfte: je 5 Stufen
 const SKILLS = [
-  ['herz', 'Extra-Herz', 'Mehr Herzen in jedem Level', [120, 260, 450, 700, 1000], l => `${[0, 1, 1, 2, 2, 3][l]} Herz(en) mehr`],
-  ['zeit', 'Zeitlupe', 'Mehr Bedenkzeit', [80, 180, 320, 500, 750], l => `${l * 7}% langsamer`],
-  ['magnet', 'Münzmagnet', 'Mehr Münzen pro Wort', [100, 220, 380, 600, 900], l => `+${l * 15}% Münzen`],
-  ['schild', 'Kombo-Schild', 'Ein Fehler zerstört die Kombo nicht', [150, 300, 500, 750, 1100], l => `${[0, 1, 1, 2, 2, 3][l]} Schild(e) pro Level`],
-  ['joker', 'Joker', 'Streicht eine falsche Antwort weg, beim Boss zeigt er die ersten Buchstaben', [90, 200, 350, 550, 800], l => `${[0, 1, 1, 2, 2, 3][l]} Joker pro Level`],
-  ['stern', 'Sternwurf', 'Chance auf Doppel-Treffer beim Boss', [120, 250, 420, 650, 950], l => `${l * 12}% Chance`],
-  ['weise', 'Weisheit', 'Mehr XP für jedes Wort', [80, 170, 300, 480, 700], l => `+${l * 12}% XP`],
-  ['klee', 'Glücksklee', 'Seltenere Wesen in Truhen', [150, 320, 520, 780, 1100], l => `+${l * 6}% Glück`]
+  // [id, Name, Beschreibung, Preise Stufe 1–5, Wirkung, Gilt für]
+  ['herz', 'Extra-Herz', 'Mehr Herzen in jedem Level', [120, 260, 450, 700, 1000], l => `${[0, 1, 1, 2, 2, 3][l]} Herz(en) mehr`, 'all'],
+  ['zeit', 'Zeitlupe', 'Mehr Zeit: langsamere Plattformen und Gegner, längere Ofenuhr', [80, 180, 320, 500, 750], l => `${l * 7}% mehr Zeit`, 'all'],
+  ['magnet', 'Münzmagnet', 'Mehr Münzen pro Wort', [100, 220, 380, 600, 900], l => `+${l * 15}% Münzen`, 'all'],
+  ['weise', 'Weisheit', 'Mehr XP für jedes Wort', [80, 170, 300, 480, 700], l => `+${l * 12}% XP`, 'all'],
+  ['schild', 'Kombo-Schild', 'Ein Fehler zerstört die Kombo nicht', [150, 300, 500, 750, 1100], l => `${[0, 1, 1, 2, 2, 3][l]} Schild(e) pro Level`, 'all'],
+  ['klee', 'Glücksklee', 'Seltenere Wesen in Truhen', [150, 320, 520, 780, 1100], l => `+${l * 6}% Glück`, 'all'],
+  ['joker', 'Sprung-Joker', 'Streicht eine falsche Plattform weg, beim Wolken-Boss gibt er die ersten Buchstaben', [90, 200, 350, 550, 800], l => `${[0, 1, 1, 2, 2, 3][l]} Joker pro Level`, 'run'],
+  ['stern', 'Sternwurf', 'Chance auf Doppel-Treffer beim Wolken-Boss', [120, 250, 420, 650, 950], l => `${l * 12}% Chance`, 'run'],
+  ['ajoker', 'Arena-Joker', 'Jagt einen falschen Gegner davon', [90, 200, 350, 550, 800], l => `${[0, 1, 1, 2, 2, 3][l]} Joker pro Level`, 'arena'],
+  ['kraft', 'Kraftschlag', 'Champions fallen schneller, Doppel-Treffer beim Grummel-König', [120, 250, 420, 650, 950], l => `${l * 12}% Chance`, 'arena'],
+  ['super', 'Super-Ladung', 'Die Super-Leiste füllt sich schneller', [100, 220, 380, 600, 900], l => `+${l * 6}% pro Treffer`, 'arena'],
+  ['rezept', 'Rezeptbuch', 'Zeigt den nächsten richtigen Buchstaben', [90, 200, 350, 550, 800], l => `${[0, 1, 1, 2, 2, 3][l]} Tipp(s) pro Level`, 'bakery'],
+  ['ofen', 'Grosser Ofen', 'Mehr Zeit in der Bäckerei und beim Backwettbewerb', [100, 220, 380, 600, 900], l => `+${l * 12}% Ofenzeit`, 'bakery'],
+  ['schaber', 'Teigschaber', 'Mehr Fehler pro Wort erlaubt', [120, 250, 420, 650, 950], l => `${3 + [0, 1, 1, 2, 2, 3][l]} Fehler pro Wort`, 'bakery']
 ];
+const SKILL_GROUPS = [['all', 'Für alle Spiele'], ['run', 'Wort-Sprung'], ['arena', 'Wort-Arena'], ['bakery', 'Bäckerei']];
 const RANKS = [[1, 'Petit pois'], [3, 'Escargot'], [5, 'Explorateur'], [8, 'Chevalier'], [12, 'Champion'], [16, 'Héros'], [20, 'Légende'], [25, 'Majesté des mots']];
 const rankOf = lvl => RANKS.filter(r => lvl >= r[0]).pop()[1];
 const COLOR_P = { berry: 0, mint: 40, sky: 40, lav: 60, honey: 60, cocoa: 80, night: 120, rose: 80, sun: 100, forest: 120, ocean: 140, snow: 160, coal: 180, gold: 400, rainbow: 600 };
@@ -65,9 +73,12 @@ const BADGES = [
   ['shop10', 'Stilikone', '10 Sachen im Shop gekauft', G => Object.keys(G.owned).filter(k => k !== 'color_berry').length >= 10],
   ['skill1', 'Erste Kraft', 'Eine Kraft gekauft', G => Object.values(G.skills).some(l => l >= 1)],
   ['skill5', 'Voll aufgeladen', 'Eine Kraft auf Stufe 5', G => Object.values(G.skills).some(l => l >= 5)],
-  ['berg', 'Bergsteiger', 'Die Ebene Berg erreicht', G => Object.keys(G.stars).some(k => k.split(':')[1] === '1')],
-  ['sterne', 'Sternenkind', 'Die Ebene Sternenhimmel erreicht', G => Object.keys(G.stars).some(k => k.split(':')[1] === '2')],
-  ['meister', 'Meister-Bezwinger', 'Einen Boss im Sternenhimmel besiegt', G => Object.keys(G.stars).some(k => /:2:4$/.test(k))],
+  ['berg', 'Bergsteiger', 'Die Ebene Berg erreicht', G => Object.keys(G.stars).some(k => parseKey(k).eb >= 1)],
+  ['sterne', 'Sternenkind', 'Die Ebene Sternenhimmel erreicht', G => Object.keys(G.stars).some(k => parseKey(k).eb === 2)],
+  ['meister', 'Meister-Bezwinger', 'Einen Boss im Sternenhimmel besiegt', G => Object.keys(G.stars).some(k => { const p = parseKey(k); return p.eb === 2 && p.i === 4 })],
+  ['king', 'Königsstürzer', 'Den Grummel-König besiegt', G => Object.keys(G.stars).some(k => { const p = parseKey(k); return p.mode === 'arena' && p.i === 4 })],
+  ['bake', 'Meisterbäcker', 'Den Backwettbewerb gewonnen', G => Object.keys(G.stars).some(k => { const p = parseKey(k); return p.mode === 'bakery' && p.i === 4 })],
+  ['tri', 'Dreifach-Held', 'In allen drei Spielen einen Boss besiegt', G => ['run', 'arena', 'bakery'].every(m => Object.keys(G.stars).some(k => { const p = parseKey(k); return p.mode === m && p.i === 4 }))],
   ['lvl10', 'Aufsteiger', 'Spieler-Level 10', G => lvlOf(G.xp).lvl >= 10],
   ['lvl20', 'Legende', 'Spieler-Level 20', G => lvlOf(G.xp).lvl >= 20],
   ['rich', 'Schatzsucher', '2000 Münzen verdient', G => (G.totals.earned || 0) >= 2000],
@@ -109,6 +120,14 @@ function setMute(m){ muted = m; ls.set('vk-mute', m); $('#btn-mute').innerHTML =
 function freshGame(){ return { coins: 0, xp: 0, stars: {}, skills: {}, ebSel: {}, owned: { color_berry: 1 }, look: { color: 'berry', hat: null, pet: null, face: null, trail: null }, cards: {}, badges: {}, daily: { day: '', secs: 0, done: false, count: 0 }, totals: { correct: 0, answers: 0, bestCombo: 0, bosses: 0 }, team: { week: '', claimed: false }, group: null } }
 function mergeGame(g){ const f = freshGame(); g = g || {}; return { ...f, ...g, look: { ...f.look, ...(g.look || {}) }, daily: { ...f.daily, ...(g.daily || {}) }, totals: { ...f.totals, ...(g.totals || {}) }, team: { ...f.team, ...(g.team || {}) }, owned: { ...f.owned, ...(g.owned || {}) }, stars: g.stars || {}, cards: g.cards || {}, badges: g.badges || {}, skills: g.skills || {}, ebSel: g.ebSel || {} } }
 const skl = id => (G && G.skills[id]) || 0;
+function migrateStars(g){ // alte Stationen (Arena = 5, Bäckerei = 6) werden zu Level 1 des Modus
+  Object.keys(g.stars).forEach(k => { const p = k.split(':'); const last = +p[p.length - 1]; if(last !== 5 && last !== 6) return;
+    const eb = p.length === 2 ? 0 : +p[1]; const nk = `${p[0]}:${last === 5 ? 'A' : 'B'}${eb}:0`; g.stars[nk] = Math.max(g.stars[nk] || 0, g.stars[k]); delete g.stars[k] });
+  // Joker für alle Modi wurde aufgeteilt: bisherige Stufe gilt auch für Arena und Bäckerei
+  if(g.skills.joker && g.skills.ajoker === undefined){ g.skills.ajoker = g.skills.joker; g.skills.rezept = g.skills.joker }
+  if(!MODE_IDS.includes(g.mode)) g.mode = 'run';
+  return g;
+}
 const sKey = (uid, eb, i) => eb ? `${uid}:${eb}:${i}` : `${uid}:${i}`;
 const ebOpen = (uid, eb) => eb === 0 || (G.stars[sKey(uid, eb - 1, 4)] || 0) >= 1;
 function lvlOf(xp){ let l = 1, need = CFG.xpLevel(1); while(xp >= need){ xp -= need; l++; need = CFG.xpLevel(l) } return { lvl: l, cur: xp, need } }
@@ -159,9 +178,10 @@ async function init(){
   units = (u.data || []).filter(x => (x.words || []).filter(w => w.fr && w.de).length >= 6);
   const d = l.data;
   prog = { cards: d.cards || {}, stars: d.stars || 0, streak: d.streak || 0, lastDay: d.last_day || '' };
-  G = mergeGame(d.game);
+  G = migrateStars(mergeGame(d.game));
+  const qm = new URLSearchParams(location.search).get('m'); if(MODE_IDS.includes(qm)) G.mode = qm;
   const local = ls.get(ckey(), null); // nicht gespeicherte Daten auf diesem Gerät
-  if(local && local.G && (local.G.xp || 0) > (G.xp || 0)){ G = mergeGame(local.G); prog = { ...prog, ...local.prog }; save() }
+  if(local && local.G && (local.G.xp || 0) > (G.xp || 0)){ G = migrateStars(mergeGame(local.G)); if(MODE_IDS.includes(qm)) G.mode = qm; prog = { ...prog, ...local.prog }; save() }
   touchDay();
   const groups = [...new Set(units.map(x => x.level || ''))];
   group = groups.includes(G.group) ? G.group : groups[groups.length - 1];
@@ -214,56 +234,59 @@ function renderMap(){
   const list = units.filter(u => (u.level || '') === group);
   $('#screen').innerHTML = `
     <section class="mapgoals" id="goals"></section>
+    <nav class="modetabs">${MODE_IDS.map(m => `<button data-modetab="${m}" aria-pressed="${G.mode === m}"><canvas width="24" height="24" data-mico="${m}"></canvas><span>${MODES[m].name}</span></button>`).join('')}</nav>
     ${groups.length > 1 ? `<nav class="lvltabs">${groups.map(g => `<button data-g="${esc(g)}" aria-pressed="${g === group}">${esc(LEVELS[g] || g || 'Weitere')}</button>`).join('')}</nav>` : ''}
     ${list.length ? `<section class="worlds">${list.map((u, wi) => worldHTML(u, wi)).join('')}</section>` : `<div class="board empty"><h2>Noch keine Welten</h2><p>Es braucht mindestens 6 Wörter pro Unité.</p></div>`}`;
   renderGoals();
   document.querySelectorAll('[data-g]').forEach(b => b.onclick = () => { sfx.click(); group = b.dataset.g; G.group = group; save(); renderMap() });
+  document.querySelectorAll('[data-modetab]').forEach(b => b.onclick = () => { sfx.click(); G.mode = b.dataset.modetab; save(); renderMap() });
   list.forEach((u, wi) => {
     const cv = document.getElementById('ban-' + u.id); if(!cv) return;
-    const eb = G.ebSel[u.id] || 0;
+    const eb = curEb(u.id), mode = G.mode;
     const c = cv.getContext('2d'); c.save(); c.translate(0, -108); ART.scene(c, ART.THEMES[wi % ART.THEMES.length], 2, wi * 140 + 30, { night: eb === 2 });
-    ART.pip(c, 200, ART.GROUND - 15, G.look, 0);
+    if(mode === 'arena'){ drawFoe(c, 'slime', FOEPAL[wi % FOEPAL.length], 230, ART.GROUND - 12, 1, true); drawFoe(c, 'knight', FOEPAL[(wi + 2) % FOEPAL.length], 252, ART.GROUND - 12, 1, true) }
+    if(mode === 'bakery'){ c.fillStyle = ART.INK; c.fillRect(226, ART.GROUND - 22, 28, 22); c.fillStyle = '#c96a4a'; c.fillRect(227, ART.GROUND - 21, 26, 21); c.fillStyle = '#ffd27a'; c.fillRect(232, ART.GROUND - 12, 16, 8) }
+    ART.pip(c, 200, ART.GROUND - 15, mode === 'bakery' ? { ...G.look, hat: 'chef' } : G.look, 0);
     if(G.look.pet) ART.creature(c, G.look.pet, 182, ART.GROUND - 12, 1, ART.petStage(G.cards[G.look.pet] || 1)); c.restore();
-    const bc = document.getElementById('bossico-' + u.id); if(bc){ const t = ART.THEMES[wi % ART.THEMES.length]; ART.boss(bc.getContext('2d'), 0, 0, t.boss[0], t.boss[1]) }
+    const bc = document.getElementById('bossico-' + u.id); if(bc){ const t = ART.THEMES[wi % ART.THEMES.length], bctx = bc.getContext('2d');
+      if(mode === 'arena') ART.draw(bctx, KING, { k: ART.INK, B: t.boss[0], G: '#b8c0cc', W: '#fff7c2', Y: '#f2c94c' }, 4, 2, true, 1);
+      else if(mode === 'bakery') ART.pip(bctx, 4, 1, { color: 'coal', hat: 'chef', face: 'mustache' }, 0);
+      else ART.boss(bctx, 0, 0, t.boss[0], t.boss[1]) }
   });
   document.querySelectorAll('.ebtab').forEach(b => b.onclick = () => {
     const uid = b.dataset.w, eb = +b.dataset.eb;
-    if(!ebOpen(uid, eb)){ sfx.wrong(); toast('Besiege zuerst den Boss der Ebene ' + EBENEN[eb - 1].name + '!'); return }
-    sfx.click(); G.ebSel[uid] = eb; save(); renderMap();
+    if(!ebOpenM(uid, G.mode, eb)){ sfx.wrong(); toast('Besiege zuerst den ' + MODES[G.mode].boss + ' der Ebene ' + EBENEN[eb - 1].name + '!'); return }
+    sfx.click(); G.ebSel[G.mode + ':' + uid] = eb; save(); renderMap();
   });
   document.querySelectorAll('[data-mico]').forEach(cv => { const c = cv.getContext('2d');
-    if(cv.dataset.mico === 'arena'){ ART.draw(c, FOES.slime, { k: ART.INK, B: '#8fd46b', D: '#5a9e45', W: '#fff' }, 10, 10, true, 1); ART.pip(c, 0, 9, G.look, 2) }
-    else { ART.pip(c, 2, 9, { ...G.look, hat: 'chef' }, 0); c.fillStyle = ART.INK; c.fillRect(14, 17, 10, 6); c.fillStyle = '#f2b84b'; c.fillRect(15, 18, 8, 4) } });
-  document.querySelectorAll('.mode[data-mode]').forEach(b => b.onclick = () => {
-    sfx.click(); ac();
-    const u = units.find(x => x.id === b.dataset.u), wi = list.indexOf(u), eb = G.ebSel[u.id] || 0;
-    b.dataset.mode === 'arena' ? startArena(u, wi, eb) : startBakery(u, wi, eb);
-  });
+    if(cv.dataset.mico === 'arena'){ drawFoe(c, 'slime', { B: '#8fd46b', D: '#5a9e45' }, 12, 11, 1, true); ART.pip(c, 0, 9, G.look, 2) }
+    else if(cv.dataset.mico === 'bakery'){ ART.pip(c, 2, 9, { ...G.look, hat: 'chef' }, 0); c.fillStyle = ART.INK; c.fillRect(14, 17, 10, 6); c.fillStyle = '#f2b84b'; c.fillRect(15, 18, 8, 4) }
+    else { c.fillStyle = ART.INK; c.fillRect(10, 18, 14, 4); c.fillStyle = '#5fc4a0'; c.fillRect(11, 18, 12, 2); ART.pip(c, 4, 3, G.look, 1) } });
   document.querySelectorAll('.node[data-u]').forEach(b => b.onclick = () => {
     if(b.classList.contains('locked')){ sfx.wrong(); toast('Zuerst das Level davor schaffen!'); return }
     sfx.click(); ac();
-    const u = units.find(x => x.id === b.dataset.u), i = +b.dataset.i, wi = list.indexOf(u), eb = G.ebSel[u.id] || 0;
-    i === 4 ? startBoss(u, wi, eb) : startRun(u, i, wi, eb);
+    const u = units.find(x => x.id === b.dataset.u), i = +b.dataset.i, wi = list.indexOf(u);
+    startMode(G.mode, u, wi, curEb(u.id), i);
   });
 }
+function curEb(uid){ const m = G.mode, e = G.ebSel[m + ':' + uid] ?? (m === 'run' ? G.ebSel[uid] : 0) ?? 0; return ebOpenM(uid, m, e || 0) ? (e || 0) : 0 }
 function worldHTML(u, wi){
-  const th = ART.THEMES[wi % ART.THEMES.length];
-  const eb = ebOpen(u.id, G.ebSel[u.id] || 0) ? (G.ebSel[u.id] || 0) : 0;
-  const st = i => G.stars[sKey(u.id, eb, i)] || 0;
+  const th = ART.THEMES[wi % ART.THEMES.length], mode = G.mode, M = MODES[mode];
+  const eb = curEb(u.id);
+  const st = i => G.stars[mKey(u.id, mode, eb, i)] || 0;
   const open = i => i === 0 || st(i - 1) >= 1;
-  const total = [0, 1, 2].reduce((a, e) => a + [0, 1, 2, 3, 4, 5, 6].reduce((b, i) => b + (G.stars[sKey(u.id, e, i)] || 0), 0), 0);
+  const total = [0, 1, 2].reduce((a, e) => a + [0, 1, 2, 3, 4].reduce((b, i) => b + (G.stars[mKey(u.id, mode, e, i)] || 0), 0), 0);
   const nextI = [0, 1, 2, 3, 4].find(i => open(i) && !st(i));
   return `<article class="world eb${eb}">
-    <div class="banner"><canvas id="ban-${esc(u.id)}" width="320" height="70"></canvas><h2>${esc(u.title)}</h2><small>${total} / 63 ★</small></div>
-    <div class="ebtabs">${EBENEN.map((E, e) => { const o = ebOpen(u.id, e); return `<button class="ebtab" data-w="${esc(u.id)}" data-eb="${e}" aria-pressed="${e === eb}" ${o ? '' : 'data-lock="1"'}>${o ? '' : '<span aria-hidden="true">🔒</span> '}${E.name}<small>${E.tag}</small></button>` }).join('')}</div>
+    <div class="banner"><canvas id="ban-${esc(u.id)}" width="320" height="70"></canvas><h2>${esc(u.title)}</h2><small>${total} / 45 ★</small></div>
+    <div class="ebtabs">${EBENEN.map((E, e) => { const o = ebOpenM(u.id, mode, e); return `<button class="ebtab" data-w="${esc(u.id)}" data-eb="${e}" aria-pressed="${e === eb}" ${o ? '' : 'data-lock="1"'}>${o ? '' : '<span aria-hidden="true">🔒</span> '}${E.name}<small>${E.tag}</small></button>` }).join('')}</div>
     <div class="path">${[0, 1, 2, 3, 4].map(i => {
       const boss = i === 4, lock = !open(i);
-      return `<button class="node ${boss ? 'boss' : ''} ${lock ? 'locked' : ''} ${i === nextI ? 'next' : ''}" data-u="${esc(u.id)}" data-i="${i}" aria-label="${boss ? 'Boss ' + th.bossName : 'Level ' + (i + 1)}${lock ? ', gesperrt' : ''}">
+      return `<button class="node ${boss ? 'boss' : ''} ${lock ? 'locked' : ''} ${i === nextI ? 'next' : ''}" data-u="${esc(u.id)}" data-i="${i}" aria-label="${boss ? M.boss : 'Level ' + (i + 1)}${lock ? ', gesperrt' : ''}" title="${esc(boss ? (mode === 'run' ? th.bossName : M.boss) : (M.levels[i].label || M.levels[i]))}">
         ${boss ? (lock ? '?' : `<canvas id="bossico-${esc(u.id)}" width="20" height="16"></canvas>`) : (lock ? '·' : i + 1)}
         ${!lock ? `<span class="st">${[1, 2, 3].map(s => `<i class="${st(i) >= s ? 'on' : ''}"></i>`).join('')}</span>` : ''}</button>`;
     }).join('')}</div>
-    <div class="modes">${[['arena', 'Wort-Arena', 'Kampf: Hau die Grummel weg'], ['bakery', 'Bäckerei', 'Back die Wörter richtig']].map(([m, n, d]) => { const k = MODES[m].node;
-      return `<button class="mode ${m}" data-mode="${m}" data-u="${esc(u.id)}"><canvas width="24" height="24" data-mico="${m}"></canvas><span><b>${n}</b><small>${d}</small></span><span class="st">${[1, 2, 3].map(s => `<i class="${st(k) >= s ? 'on' : ''}"></i>`).join('')}</span></button>` }).join('')}</div></article>`;
+    <p class="lvlinfo">${esc(M.name)} · ${EBENEN[eb].name}: ${[0, 1, 2, 3].map(i => esc(M.levels[i].label || M.levels[i])).filter((v, i, a) => a.indexOf(v) === i).join(' · ')} · Boss: ${esc(mode === 'run' ? th.bossName : M.boss)}</p></article>`;
 }
 function ringSVG(p, col){
   const r = 22, c = 2 * Math.PI * r;
@@ -300,7 +323,7 @@ function distractors(u, x, field, k = 2){
 
 /* ---------- Spiel-Schleife ---------- */
 let raf = null, loopFn = null, keyFn = null;
-function startLoop(fn){ if(raf) cancelAnimationFrame(raf); loopFn = fn; let last = performance.now(); const step = now => { const dt = Math.min(.05, (now - last) / 1000); last = now; loopFn(dt); raf = requestAnimationFrame(step) }; raf = requestAnimationFrame(step) }
+function startLoop(fn){ if(raf) cancelAnimationFrame(raf); loopFn = fn; let last = performance.now(); const step = now => { const dt = Math.max(0, Math.min(.05, (now - last) / 1000)); last = now; loopFn(dt); raf = requestAnimationFrame(step) }; raf = requestAnimationFrame(step) }
 function stopLoop(){ if(raf) cancelAnimationFrame(raf); raf = null; loopFn = null; if(keyFn){ removeEventListener('keydown', keyFn); keyFn = null } }
 function particles(){ const P = []; return { add(x, y, col, n = 8, sp = 60){ for(let i = 0; i < n; i++){ const a = Math.random() * Math.PI * 2, v = sp * (.4 + Math.random()); P.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 30, life: .8 + Math.random() * .4, col: Array.isArray(col) ? col[i % col.length] : col }) } }, step(c, dt){ for(let i = P.length - 1; i >= 0; i--){ const p = P[i]; p.life -= dt; if(p.life <= 0){ P.splice(i, 1); continue } p.vy += 160 * dt; p.x += p.vx * dt; p.y += p.vy * dt; c.fillStyle = p.col; c.fillRect(p.x | 0, p.y | 0, 2, 2) } } } }
 const CONFETTI = ['#e86a6a', '#5fc4a0', '#f2b84b', '#7ec4e6', '#b9a3e3', '#fff'];
@@ -652,13 +675,14 @@ function renderShop(){
   const L = lvlOf(G.xp).lvl;
   const head = `<section class="board"><div class="panelhead"><h2>Shop</h2><span class="hud-coins"><i class="coin"></i>${G.coins}</span></div>
     <nav class="tabs2" style="margin-top:8px">${SHOPTABS.map(([k, n]) => `<button data-t="${k}" aria-pressed="${shopTab === k}">${n}</button>`).join('')}</nav>
-    <p class="hint" style="margin-top:6px">${shopTab === 'skill' ? 'Kräfte helfen dir in jedem Level. Jede Kraft hat 5 Stufen.' : shopTab === 'chest' ? 'In Truhen stecken Wesen. Doppelte Wesen entwickeln sich weiter.' : 'Mit höherem Level gibt es neue Sachen. Münzen verdienst du mit richtigen Wörtern.'}</p></section>`;
+    <p class="hint" style="margin-top:6px">${shopTab === 'skill' ? 'Jede Kraft hat 5 Stufen. Die oberen gelten in allen drei Spielen, die anderen nur in einem.' : shopTab === 'chest' ? 'In Truhen stecken Wesen. Doppelte Wesen entwickeln sich weiter.' : 'Mit höherem Level gibt es neue Sachen. Münzen verdienst du mit richtigen Wörtern.'}</p></section>`;
   let body = '';
   if(shopTab === 'skill'){
-    body = `<section class="skills">${SKILLS.map(([id, name, desc, prices, eff]) => { const l = skl(id), max = l >= 5, p = prices[l];
+    const card = ([id, name, desc, prices, eff]) => { const l = skl(id), max = l >= 5, p = prices[l];
       return `<div class="item skill"><div class="sk-top"><b>${esc(name)}</b><span class="pips">${[1, 2, 3, 4, 5].map(i => `<i class="${i <= l ? 'on' : ''}"></i>`).join('')}</span></div>
         <small>${esc(desc)}</small><small class="eff">${l ? 'Jetzt: ' + eff(l) : 'Noch nicht gekauft'}${max ? '' : ' → Stufe ' + (l + 1) + ': ' + eff(l + 1)}</small>
-        ${max ? '<span class="maxed">Maximal!</span>' : `<button data-skill="${id}" ${G.coins < p ? 'disabled' : ''}><i class="coin"></i> ${p}</button>`}</div>` }).join('')}</section>`;
+        ${max ? '<span class="maxed">Maximal!</span>' : `<button data-skill="${id}" ${G.coins < p ? 'disabled' : ''}><i class="coin"></i> ${p}</button>`}</div>` };
+    body = SKILL_GROUPS.map(([g, title]) => `<h3 class="skgroup">${esc(title)}</h3><section class="skills">${SKILLS.filter(x => x[5] === g).map(card).join('')}</section>`).join('');
   } else if(shopTab === 'chest'){
     body = `<section class="grid">${CHESTS.map(([id, name, price, desc]) => `<div class="item"><canvas width="20" height="16" data-chest="${id}"></canvas><b>${esc(name)}</b><small>${esc(desc)}</small><span class="price"><i class="coin"></i>${price}</span><button data-buychest="${id}" ${G.coins < price ? 'disabled' : ''}>Kaufen</button></div>`).join('')}</section>`;
   } else {

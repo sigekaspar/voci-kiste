@@ -84,7 +84,7 @@ const ART = (() => {
     else draw(ctx, PIP_BODY, pal, x, y + 7 * scale, false, scale);
     const face = FACES[look.face];
     if(face) draw(ctx, face.rows, { k: INK, ...face.pal }, x, y + face.dy * scale, false, scale);
-    draw(ctx, LEGS[frame % 3], pal, x, y + 11 * scale, false, scale);
+    draw(ctx, LEGS[((frame | 0) % 3 + 3) % 3], pal, x, y + 11 * scale, false, scale);
     const hat = HATS[look.hat];
     if(hat) draw(ctx, hat.rows, { k: INK, ...hat.pal }, x, y + hat.dy * scale, false, scale);
   }
