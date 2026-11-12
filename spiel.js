@@ -1,0 +1,590 @@
+// Voci-Abenteuer · Wörter üben als Pixel-Abenteuer
+// ===== Balance: hier lässt sich alles einfach anpassen =====
+const CFG = {
+  runQuestions: 8,        // Fragen pro Level
+  hearts: 3,              // Herzen pro Level
+  speed: 34,              // Tempo der Plattformen (Pixel pro Sekunde), ≈ 8 Sekunden Bedenkzeit
+  speedPerCombo: 2.5,     // schneller pro Kombo-Schritt
+  coin: 5,                // Münzen pro richtigem Wort (mal Kombo-Faktor)
+  comboStep: 3,           // alle 3 richtigen in Folge steigt der Faktor
+  comboMax: 5,            // höchster Faktor ×5
+  starBonus: 10,          // Münzen pro Stern am Levelende
+  bossHP: 6, bossTime: 25, bossCoin: 10, bossWin: 60,
+  xpCorrect: 10, xpLevel: lvl => 100 + 40 * (lvl - 1),
+  dailySecs: 600,         // Tagesziel: 10 Minuten aktives Spielen
+  teamPerKid: 150,        // Teamziel pro Kind und Woche (richtige Antworten, wird auf dem Server gerechnet)
+  dupCoins: 25,           // Münzen für ein doppeltes Wesen
+  rarity: [70, 25, 5], rarityBoss: [45, 40, 15],
+  idleCap: 60
+};
+const SHOP = [
+  ...Object.entries(ART.COLORS).map(([k, c], i) => ({ id: 'color_' + k, kind: 'color', key: k, name: c[2], price: i === 0 ? 0 : [0, 40, 40, 60, 60, 80, 120][i] })),
+  ...[['flower', 50], ['cap', 70], ['beret', 100], ['chef', 140], ['helmet', 220], ['crown', 300], ['wizard', 380]].map(([k, p]) => ({ id: 'hat_' + k, kind: 'hat', key: k, name: ART.HATS[k].name, price: p }))
+];
+const BADGES = [
+  ['first', 'Erster Schritt', 'Ein Level geschafft', G => Object.keys(G.stars).length >= 1],
+  ['perfect', 'Perfekt!', 'Ein Level mit 3 Sternen', G => Object.values(G.stars).some(s => s >= 3)],
+  ['boss', 'Boss-Bezwinger', 'Einen Boss besiegt', G => G.totals.bosses >= 1],
+  ['boss5', 'Wolkenjäger', '5 Bosse besiegt', G => G.totals.bosses >= 5],
+  ['combo10', 'Kombo-König', '10 richtige in Folge', G => G.totals.bestCombo >= 10],
+  ['w100', '100 Wörter', '100 Wörter richtig', G => G.totals.correct >= 100],
+  ['w500', 'Wort-Profi', '500 Wörter richtig', G => G.totals.correct >= 500],
+  ['daily5', 'Fleissig', '5 Mal das Tagesziel', G => G.daily.count >= 5],
+  ['coll8', 'Sammler', '8 verschiedene Wesen', G => Object.keys(G.cards).length >= 8],
+  ['collall', 'Alle gefunden!', 'Alle 16 Wesen', G => Object.keys(G.cards).length >= ART.CREATURES.length],
+  ['shop3', 'Modeprofi', '3 Sachen im Shop gekauft', G => Object.keys(G.owned).filter(k => k !== 'color_berry').length >= 3],
+  ['world', 'Welt-Meister', 'Alle Sterne einer Welt', G => worldsFull(G) >= 1]
+];
+const SLOT = [['var(--berry)', '#e86a6a', '#b54646', '1', '↑'], ['var(--mint)', '#5fc4a0', '#3a9479', '2', '→'], ['var(--honey)', '#f2b84b', '#c98a24', '3', '↓']];
+
+const { sb, error: setupErr } = makeClient();
+let kid = ls.get('vk-kid', null), units = [], prog = null, G = null, team = null, group = null;
+const SPK2 = '<svg viewBox="0 0 24 24" fill="none" stroke="#3b2d3f" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z" fill="#3b2d3f"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg>';
+
+/* ---------- Ton (nur Effekte) ---------- */
+let AC = null, muted = ls.get('vk-mute', false);
+function ac(){ if(!AC){ try{ AC = new (window.AudioContext || window.webkitAudioContext)() }catch{ AC = null } } if(AC && AC.state === 'suspended') AC.resume(); return AC }
+function tone(f, d, type = 'square', vol = .08, when = 0, slide = 0){
+  const a = ac(); if(!a || muted) return;
+  const t0 = a.currentTime + when, o = a.createOscillator(), g = a.createGain();
+  o.type = type; o.frequency.setValueAtTime(f, t0); if(slide) o.frequency.exponentialRampToValueAtTime(Math.max(40, f + slide), t0 + d);
+  g.gain.setValueAtTime(vol, t0); g.gain.exponentialRampToValueAtTime(.0008, t0 + d);
+  o.connect(g).connect(a.destination); o.start(t0); o.stop(t0 + d + .02);
+}
+const sfx = {
+  click: () => tone(660, .05, 'square', .04),
+  jump: () => tone(300, .18, 'square', .06, 0, 500),
+  coin: () => { tone(988, .07, 'square', .06); tone(1319, .16, 'square', .06, .07) },
+  combo: n => [523, 659, 784, 1047].slice(0, 2 + Math.min(2, n)).forEach((f, i) => tone(f, .1, 'triangle', .08, i * .06)),
+  wrong: () => { tone(220, .25, 'triangle', .1, 0, -90); tone(180, .3, 'triangle', .08, .12, -60) },
+  splash: () => { for(let i = 0; i < 5; i++) tone(500 + Math.random() * 900, .06, 'triangle', .03, i * .03) },
+  hit: () => { tone(140, .2, 'sawtooth', .07, 0, -80); tone(880, .1, 'square', .05, .02) },
+  win: () => [523, 659, 784, 659, 784, 1047].forEach((f, i) => tone(f, .16, 'square', .06, i * .11)),
+  level: () => [392, 523, 659, 784, 1047, 1319].forEach((f, i) => tone(f, .12, 'triangle', .09, i * .07)),
+  chest: () => [880, 1175, 1568, 2093].forEach((f, i) => tone(f, .2, 'triangle', .06, i * .09)),
+  buy: () => { tone(784, .08, 'square', .05); tone(1047, .12, 'square', .05, .08) }
+};
+function setMute(m){ muted = m; ls.set('vk-mute', m); $('#btn-mute').innerHTML = m ? '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#3b2d3f" stroke-width="2.4"><path d="M11 5 6 9H3v6h3l5 4z" fill="#3b2d3f"/><path d="M16 9l5 6M21 9l-5 6"/></svg>' : SPK2.replace('<svg ', '<svg width="22" height="22" '); $('#btn-mute').setAttribute('aria-label', m ? 'Ton an' : 'Ton aus') }
+
+/* ---------- Spielstand ---------- */
+function freshGame(){ return { coins: 0, xp: 0, stars: {}, owned: { color_berry: 1 }, look: { color: 'berry', hat: null, pet: null }, cards: {}, badges: {}, daily: { day: '', secs: 0, done: false, count: 0 }, totals: { correct: 0, answers: 0, bestCombo: 0, bosses: 0 }, team: { week: '', claimed: false }, group: null } }
+function mergeGame(g){ const f = freshGame(); g = g || {}; return { ...f, ...g, look: { ...f.look, ...(g.look || {}) }, daily: { ...f.daily, ...(g.daily || {}) }, totals: { ...f.totals, ...(g.totals || {}) }, team: { ...f.team, ...(g.team || {}) }, owned: { ...f.owned, ...(g.owned || {}) }, stars: g.stars || {}, cards: g.cards || {}, badges: g.badges || {} } }
+function lvlOf(xp){ let l = 1, need = CFG.xpLevel(1); while(xp >= need){ xp -= need; l++; need = CFG.xpLevel(l) } return { lvl: l, cur: xp, need } }
+function worldsFull(g){ return units.filter(u => [0, 1, 2, 3, 4].every(i => (g.stars[u.id + ':' + i] || 0) >= 3)).length }
+const ckey = () => 'vk-game-' + kid.name.toLowerCase();
+
+let saveT = null, saving = false, dirty = false;
+function save(){ dirty = true; ls.set(ckey(), { G, prog }); clearTimeout(saveT); saveT = setTimeout(flushSave, 1500) }
+async function flushSave(){
+  if(!dirty || saving) return; saving = true; dirty = false;
+  const [a, b] = await Promise.all([
+    sb.rpc('kid_save_game', { p_name: kid.name, p_pin: kid.pin, p_game: G }),
+    sb.rpc('kid_save', { p_name: kid.name, p_pin: kid.pin, p_cards: prog.cards, p_stars: prog.stars || 0, p_streak: prog.streak || 0, p_last_day: prog.lastDay || null })
+  ]);
+  saving = false;
+  if(a.error || b.error){ dirty = true; console.error(a.error || b.error); toast('Speichern hat nicht geklappt, ich versuche es nochmals.'); clearTimeout(saveT); saveT = setTimeout(flushSave, 8000) }
+}
+addEventListener('pagehide', () => { if(dirty) flushSave() });
+document.addEventListener('visibilitychange', () => { if(document.visibilityState === 'hidden' && dirty) flushSave() });
+
+function touchDay(){
+  const t = today();
+  if(prog.lastDay !== t){ prog.streak = prog.lastDay === today(-1) ? (prog.streak || 0) + 1 : 1; prog.lastDay = t }
+  if(G.daily.day !== t) G.daily = { ...G.daily, day: t, secs: 0, done: false };
+}
+function leitner(key, right, strong){
+  const cur = prog.cards[key] || { box: 0, due: today() };
+  let box = cur.box || 0;
+  if(right){
+    if(strong) box = box === 0 ? 2 : Math.min(5, box + 1);
+    else if(box < 3) box = box + 1;
+    else return;
+    prog.cards[key] = { box, due: today(cur.box === 5 && box === 5 ? 30 : NEXT[box]) };
+  } else prog.cards[key] = { box: 1, due: today(1) };
+}
+
+/* ---------- Start ---------- */
+async function init(){
+  setMute(muted);
+  if(setupErr){ $('#screen').innerHTML = setupMessage(setupErr); return }
+  if(!kid) return needLogin();
+  const [u, l] = await Promise.all([
+    sb.from('units').select('id,title,ord,level,words').order('ord'),
+    sb.rpc('kid_login', { p_name: kid.name, p_pin: kid.pin })
+  ]);
+  if(l.error || !l.data) return needLogin();
+  if(u.error){ $('#screen').innerHTML = `<div class="board empty"><h2>Keine Verbindung</h2><p>${esc(u.error.message)}</p></div>`; return }
+  units = (u.data || []).filter(x => (x.words || []).filter(w => w.fr && w.de).length >= 6);
+  const d = l.data;
+  prog = { cards: d.cards || {}, stars: d.stars || 0, streak: d.streak || 0, lastDay: d.last_day || '' };
+  G = mergeGame(d.game);
+  const local = ls.get(ckey(), null); // nicht gespeicherte Daten auf diesem Gerät
+  if(local && local.G && (local.G.xp || 0) > (G.xp || 0)){ G = mergeGame(local.G); prog = { ...prog, ...local.prog }; save() }
+  touchDay();
+  const groups = [...new Set(units.map(x => x.level || ''))];
+  group = groups.includes(G.group) ? G.group : groups[groups.length - 1];
+  $('#hud').hidden = false; hud();
+  loadTeam(); renderMap();
+}
+function needLogin(){
+  $('#hud').hidden = true;
+  $('#screen').innerHTML = `<div class="board empty"><h2>Wer spielt?</h2><p>Melde dich zuerst in der Voci-Kiste mit deinem Namen und deiner PIN an.</p><a class="pbtn" href="index.html">Zur Voci-Kiste</a></div>`;
+}
+async function loadTeam(){
+  const { data } = await sb.rpc('team_week', { p_name: kid.name, p_pin: kid.pin });
+  if(data){ team = data; if(G.team.week !== data.week) G.team = { week: data.week, claimed: false }; if(curView === 'map') renderGoals() }
+}
+
+/* ---------- HUD ---------- */
+function avatarCanvas(cv, look, frame = 0){
+  const c = cv.getContext('2d'); c.clearRect(0, 0, cv.width, cv.height);
+  ART.pip(c, (cv.width - 12) / 2 | 0, cv.height - 15, look || G.look, frame);
+}
+function hud(){
+  $('#hud-name').textContent = kid.name;
+  const L = lvlOf(G.xp);
+  $('#hud-lvl').textContent = L.lvl;
+  $('#hud-xp').style.width = (L.cur / L.need * 100) + '%';
+  $('#hud-coins').textContent = G.coins;
+  avatarCanvas($('#hud-ava'), G.look);
+}
+$('#hud-me').onclick = () => { sfx.click(); stopLoop(); renderMap() };
+$('#btn-shop').onclick = () => { sfx.click(); stopLoop(); renderShop() };
+$('#btn-album').onclick = () => { sfx.click(); stopLoop(); renderAlbum() };
+$('#btn-badges').onclick = () => { sfx.click(); stopLoop(); renderBadges() };
+$('#btn-mute').onclick = () => { setMute(!muted); if(!muted) sfx.click() };
+
+function addCoins(n, el){ G.coins += n; $('#hud-coins').textContent = G.coins; if(el) floatText(el, '+' + n) }
+function addXP(n){
+  const before = lvlOf(G.xp).lvl; G.xp += n; const after = lvlOf(G.xp).lvl; hud();
+  if(after > before){ sfx.level(); toast('Level ' + after + '! Super!') }
+}
+function floatText(box, text, x = 22, y = 40, color = '#fff'){
+  const s = document.createElement('span'); s.className = 'float'; s.textContent = text; s.style.left = x + '%'; s.style.top = y + '%'; s.style.color = color;
+  box.appendChild(s); setTimeout(() => s.remove(), 1000);
+}
+
+/* ---------- Karte ---------- */
+let curView = 'map';
+function renderMap(){
+  curView = 'map'; hud();
+  const groups = [...new Set(units.map(x => x.level || ''))];
+  const list = units.filter(u => (u.level || '') === group);
+  $('#screen').innerHTML = `
+    <section class="mapgoals" id="goals"></section>
+    ${groups.length > 1 ? `<nav class="lvltabs">${groups.map(g => `<button data-g="${esc(g)}" aria-pressed="${g === group}">${esc(LEVELS[g] || g || 'Weitere')}</button>`).join('')}</nav>` : ''}
+    ${list.length ? `<section class="worlds">${list.map((u, wi) => worldHTML(u, wi)).join('')}</section>` : `<div class="board empty"><h2>Noch keine Welten</h2><p>Es braucht mindestens 6 Wörter pro Unité.</p></div>`}`;
+  renderGoals();
+  document.querySelectorAll('[data-g]').forEach(b => b.onclick = () => { sfx.click(); group = b.dataset.g; G.group = group; save(); renderMap() });
+  list.forEach((u, wi) => {
+    const cv = document.getElementById('ban-' + u.id); if(!cv) return;
+    const c = cv.getContext('2d'); c.save(); c.translate(0, -108); ART.scene(c, ART.THEMES[wi % ART.THEMES.length], 2, wi * 140 + 30);
+    ART.pip(c, 200, ART.GROUND - 15, G.look, 0);
+    if(G.look.pet) ART.creature(c, G.look.pet, 182, ART.GROUND - 12, 1); c.restore();
+    const bc = document.getElementById('bossico-' + u.id); if(bc){ const t = ART.THEMES[wi % ART.THEMES.length]; ART.boss(bc.getContext('2d'), 0, 0, t.boss[0], t.boss[1]) }
+  });
+  document.querySelectorAll('.node[data-u]').forEach(b => b.onclick = () => {
+    if(b.classList.contains('locked')){ sfx.wrong(); toast('Zuerst das Level davor schaffen!'); return }
+    sfx.click(); ac();
+    const u = units.find(x => x.id === b.dataset.u), i = +b.dataset.i, wi = list.indexOf(u);
+    i === 4 ? startBoss(u, wi) : startRun(u, i, wi);
+  });
+}
+function worldHTML(u, wi){
+  const th = ART.THEMES[wi % ART.THEMES.length];
+  const st = i => G.stars[u.id + ':' + i] || 0;
+  const open = i => i === 0 || st(i - 1) >= 1;
+  const total = [0, 1, 2, 3, 4].reduce((a, i) => a + st(i), 0);
+  const nextI = [0, 1, 2, 3, 4].find(i => open(i) && !st(i));
+  return `<article class="world">
+    <div class="banner"><canvas id="ban-${esc(u.id)}" width="320" height="70"></canvas><h2>${esc(u.title)}</h2><small>${total} / 15 ★</small></div>
+    <div class="path">${[0, 1, 2, 3, 4].map(i => {
+      const boss = i === 4, lock = !open(i);
+      return `<button class="node ${boss ? 'boss' : ''} ${lock ? 'locked' : ''} ${i === nextI ? 'next' : ''}" data-u="${esc(u.id)}" data-i="${i}" aria-label="${boss ? 'Boss ' + th.bossName : 'Level ' + (i + 1)}${lock ? ', gesperrt' : ''}">
+        ${boss ? (lock ? '?' : `<canvas id="bossico-${esc(u.id)}" width="20" height="16"></canvas>`) : (lock ? '·' : i + 1)}
+        ${!lock ? `<span class="st">${[1, 2, 3].map(s => `<i class="${st(i) >= s ? 'on' : ''}"></i>`).join('')}</span>` : ''}</button>`;
+    }).join('')}</div></article>`;
+}
+function ringSVG(p, col){
+  const r = 22, c = 2 * Math.PI * r;
+  return `<svg class="ring" viewBox="0 0 54 54"><circle cx="27" cy="27" r="${r}" fill="#fff6e9" stroke="#e8d9c4" stroke-width="7"/><circle cx="27" cy="27" r="${r}" fill="none" stroke="${col}" stroke-width="7" stroke-dasharray="${c * Math.min(1, p)} ${c}" transform="rotate(-90 27 27)"/><circle cx="27" cy="27" r="${r + 4}" fill="none" stroke="#3b2d3f" stroke-width="2"/></svg>`;
+}
+function renderGoals(){
+  const el = $('#goals'); if(!el) return;
+  const mins = Math.floor(G.daily.secs / 60), goalM = CFG.dailySecs / 60;
+  const tp = team ? team.correct / team.goal : 0;
+  el.innerHTML = `
+    <div class="board goal">${ringSVG(G.daily.secs / CFG.dailySecs, '#f2b84b')}<div><b>${G.daily.done ? 'Tagesziel geschafft!' : 'Tagesziel'}</b><small>${Math.min(mins, goalM)} von ${goalM} Minuten${G.daily.done ? ' · weiter so!' : ' · dann gibt es eine Truhe'}</small></div></div>
+    <div class="board goal"><div style="flex:1;min-width:0"><b>Teamziel der Woche</b><small>${team ? `${team.correct} von ${team.goal} Wörtern, alle Kinder zusammen` : 'wird geladen …'}</small><div class="tbar"><i style="width:${Math.min(100, tp * 100)}%"></i></div>
+      ${team && tp >= 1 && !G.team.claimed ? '<button class="pbtn mint claim" id="team-claim">Teamtruhe öffnen</button>' : ''}</div></div>`;
+  const tc = $('#team-claim'); if(tc) tc.onclick = () => { G.team.claimed = true; save(); openChest('team', () => renderMap()) };
+}
+
+/* ---------- Wörter auswählen ---------- */
+function wordsOf(u){ return (u.words || []).filter(w => w.fr && w.de).map(w => ({ w, key: u.id + '|' + w.fr })) }
+function pickWords(u, n){
+  const ws = wordsOf(u);
+  const score = x => { const c = prog.cards[x.key]; const box = c ? c.box : 0; const due = !c || c.due <= today(); return (due ? 0 : 10) + box * 2 + Math.random() * 3 };
+  const sorted = ws.map(x => [score(x), x]).sort((a, b) => a[0] - b[0]).map(a => a[1]);
+  const out = sorted.slice(0, Math.min(n, sorted.length));
+  while(out.length < n) out.push(sorted[out.length % sorted.length]);
+  return shuffle(out);
+}
+function distractors(u, x, field, k = 2){
+  const pool = [...wordsOf(u), ...units.filter(o => o !== u && o.level === u.level).flatMap(wordsOf)].filter(o => o.w[field] !== x.w[field]);
+  const same = pool.filter(o => o.w.fr.split(' ')[0] === x.w.fr.split(' ')[0]); // gleicher Artikel = schwieriger
+  const pick = shuffle(same.slice()).slice(0, 1).concat(shuffle(pool.slice()));
+  const res = []; for(const o of pick){ if(res.length >= k) break; if(!res.includes(o.w[field])) res.push(o.w[field]) }
+  return res;
+}
+
+/* ---------- Spiel-Schleife ---------- */
+let raf = null, loopFn = null, keyFn = null;
+function startLoop(fn){ if(raf) cancelAnimationFrame(raf); loopFn = fn; let last = performance.now(); const step = now => { const dt = Math.min(.05, (now - last) / 1000); last = now; loopFn(dt); raf = requestAnimationFrame(step) }; raf = requestAnimationFrame(step) }
+function stopLoop(){ if(raf) cancelAnimationFrame(raf); raf = null; loopFn = null; if(keyFn){ removeEventListener('keydown', keyFn); keyFn = null } }
+function particles(){ const P = []; return { add(x, y, col, n = 8, sp = 60){ for(let i = 0; i < n; i++){ const a = Math.random() * Math.PI * 2, v = sp * (.4 + Math.random()); P.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 30, life: .8 + Math.random() * .4, col: Array.isArray(col) ? col[i % col.length] : col }) } }, step(c, dt){ for(let i = P.length - 1; i >= 0; i--){ const p = P[i]; p.life -= dt; if(p.life <= 0){ P.splice(i, 1); continue } p.vy += 160 * dt; p.x += p.vx * dt; p.y += p.vy * dt; c.fillStyle = p.col; c.fillRect(p.x | 0, p.y | 0, 2, 2) } } } }
+const CONFETTI = ['#e86a6a', '#5fc4a0', '#f2b84b', '#7ec4e6', '#b9a3e3', '#fff'];
+function activeTick(S){ const now = Date.now(); const d = Math.min(CFG.idleCap, (now - S.lastAct) / 1000); S.lastAct = now; S.secs += d; G.daily.secs += d;
+  if(!G.daily.done && G.daily.secs >= CFG.dailySecs){ G.daily.done = true; G.daily.count = (G.daily.count || 0) + 1; S.dailyNow = true } }
+
+/* ---------- Wort-Sprung ---------- */
+function startRun(u, li, wi){
+  curView = 'game';
+  const th = ART.THEMES[wi % ART.THEMES.length];
+  const frde = li < 2; // Level 1–2: Französisch erkennen, Level 3–4: Französisch wählen
+  const items = pickWords(u, CFG.runQuestions);
+  const S = { u, li, th, frde, items, qi: -1, hearts: CFG.hearts, combo: 0, errors: 0, correct: 0, coins: 0, secs: 0, lastAct: Date.now(), started: new Date().toISOString(),
+    phase: 'run', t: 0, off: 0, cx: 999, py: 0, vy: 0, choice: null, opts: [], ansSlot: -1, crumble: 0, frame: 0, ft: 0, blink: 0, pDropY: 0 };
+  const P = particles();
+  $('#screen').innerHTML = `<section class="stage">
+    <div class="qbar"><div class="hearts" id="hearts"></div><span class="combo" id="combo"></span><span class="prog" id="prog"></span><button class="hud-btn" id="quit">Karte</button></div>
+    <div class="board qword" id="q"></div>
+    <div class="canvasbox" id="box"><canvas id="cv" width="${ART.W}" height="${ART.H}"></canvas></div>
+    <div class="answers" id="ans"></div></section>`;
+  const cv = $('#cv'), c = cv.getContext('2d'), box = $('#box');
+  $('#quit').onclick = () => confirmQuit(() => { endRun(S, true) });
+  const hearts = () => { $('#hearts').innerHTML = Array.from({ length: CFG.hearts }, (_, i) => `<i class="${i < S.hearts ? '' : 'off'}"></i>`).join('') };
+  const mult = () => Math.min(CFG.comboMax, 1 + Math.floor(S.combo / CFG.comboStep));
+  const comboUI = () => { const m = mult(); const el = $('#combo'); el.textContent = S.combo >= 2 ? `Kombo ${S.combo} · ×${m}` : ''; el.classList.remove('big'); void el.offsetWidth; if(S.combo >= 2) el.classList.add('big') };
+  hearts();
+  const PLAT = [ART.GROUND - 100, ART.GROUND - 66, ART.GROUND - 32], PW = 56, PX = 56, LAND = PX + 12 - PW / 2 | 0, JUMP = .5;
+
+  function nextQ(){
+    S.qi++; S.choice = null; S.crumble = 0;
+    if(S.qi >= S.items.length || S.hearts <= 0) return finish();
+    const x = S.items[S.qi], field = S.frde ? 'de' : 'fr';
+    const right = x.w[field], opts = shuffle([right, ...distractors(S.u, x, field)]);
+    S.opts = opts; S.ansSlot = opts.indexOf(right); S.cx = ART.W + 20; S.phase = 'approach';
+    $('#prog').textContent = `${S.qi + 1} / ${S.items.length}`;
+    $('#q').innerHTML = S.frde
+      ? `<button class="say" id="say" aria-label="Anhören">${SPK2}</button><span>${esc(x.w.fr)}<small>Was heisst das? Spring auf das richtige Wort!</small></span>`
+      : `<span>${esc(x.w.de)}<small>Wie heisst das auf Französisch?</small></span>`;
+    if(S.frde){ $('#say').onclick = () => speak(x.w.fr); setTimeout(() => speak(x.w.fr), 200) }
+    $('#ans').innerHTML = opts.map((o, i) => `<button class="ans" data-i="${i}"><span class="flag" style="background:${SLOT[i][0]}">${SLOT[i][3]}</span>${esc(o)}<span class="key">Taste ${SLOT[i][3]} oder ${SLOT[i][4]}</span></button>`).join('');
+    document.querySelectorAll('.ans').forEach(b => b.onclick = () => choose(+b.dataset.i));
+  }
+  function choose(i){
+    if(S.phase !== 'approach' || S.choice !== null) return;
+    S.choice = i; S.phase = 'rush'; sfx.click(); activeTick(S);
+    document.querySelectorAll('.ans').forEach((b, j) => { b.disabled = true; if(j === i) b.style.outline = '4px solid #3b2d3f' });
+  }
+  keyFn = e => { if(curView !== 'game') return; const k = { '1': 0, '2': 1, '3': 2, ArrowUp: 0, ArrowRight: 1, ArrowDown: 2 }[e.key]; if(k !== undefined){ e.preventDefault(); choose(k) } if(e.key === 'Escape') $('#quit').click() };
+  addEventListener('keydown', keyFn);
+
+  function judge(){
+    const x = S.items[S.qi], ok = S.choice === S.ansSlot;
+    document.querySelectorAll('.ans').forEach((b, j) => { if(j === S.ansSlot) b.classList.add('right'); else if(j === S.choice) b.classList.add('wrong') });
+    leitner(x.key, ok, false);
+    G.totals.answers++;
+    if(ok){
+      S.combo++; S.correct++; G.totals.correct++; prog.stars = (prog.stars || 0) + 1;
+      G.totals.bestCombo = Math.max(G.totals.bestCombo, S.combo);
+      const m = mult(), gain = CFG.coin * m; S.coins += gain; addCoins(gain); addXP(CFG.xpCorrect);
+      floatText(box, '+' + gain, 18, 22, '#fff3b0');
+      P.add(PX + 12, PLAT[S.choice] - 16, CONFETTI, 18, 80);
+      sfx.coin(); if(S.combo && S.combo % CFG.comboStep === 0){ sfx.combo(m); floatText(box, '×' + m + '!', 40, 30, '#ffd0e0') }
+      if(!S.frde) speak(x.w.fr);
+    } else {
+      S.combo = 0; S.errors++; S.hearts--; hearts(); sfx.wrong();
+      if(S.frde) setTimeout(() => speak(x.w.fr), 300);
+    }
+    comboUI(); touchDay(); save();
+    return ok;
+  }
+  function finish(){ S.phase = 'end'; setTimeout(() => endRun(S, false), 500) }
+
+  startLoop(dt => {
+    S.t += dt; S.ft += dt; if(S.ft > .12){ S.ft = 0; S.frame = (S.frame + 1) % 3 }
+    const v = CFG.speed + CFG.speedPerCombo * Math.min(8, S.combo);
+    const sp = S.phase === 'rush' ? 230 : (S.phase === 'end' ? 20 : v);
+    S.off += sp * dt;
+    if(S.cx < 900) S.cx -= sp * dt;
+    const jumpAt = LAND + v * JUMP;
+    if(S.phase === 'run' && S.t > .6) nextQ();
+    if((S.phase === 'approach' || S.phase === 'rush') && S.cx <= jumpAt){
+      if(S.choice === null){ // Zeit abgelaufen: Pip läuft weiter und fällt ins Wasser
+        S.phase = 'fall'; S.vy = -40; S.timeout = true; activeTick(S);
+        document.querySelectorAll('.ans').forEach(b => b.disabled = true); judge();
+      } else { S.phase = 'jump'; S.jt = 0; S.jfrom = 0; S.jto = PLAT[S.choice] - (ART.GROUND); sfx.jump() }
+    }
+    let pyOff = 0;
+    if(S.phase === 'jump'){
+      S.jt += dt; const k = Math.min(1, S.jt / JUMP);
+      pyOff = S.jfrom + (S.jto - S.jfrom) * k - Math.sin(k * Math.PI) * 26;
+      if(k >= 1){ S.ok = judge(); S.phase = S.ok ? 'ride' : 'crumble'; S.pt = 0 }
+    } else if(S.phase === 'ride'){
+      pyOff = S.jto; S.pt += dt;
+      if(S.cx + PW < PX - 2){ S.phase = 'drop'; S.dt0 = 0 }
+    } else if(S.phase === 'drop'){
+      S.dt0 += dt; const k = Math.min(1, S.dt0 / .35); pyOff = S.jto * (1 - k) - Math.sin(k * Math.PI) * 8;
+      if(k >= 1){ S.phase = 'gap'; }
+    } else if(S.phase === 'crumble'){
+      S.pt += dt; S.crumble = Math.min(1, S.pt / .7); pyOff = S.jto + S.crumble * S.crumble * 60;
+      if(S.pt > .25 && !S.splashed){ S.splashed = true }
+      if(S.crumble >= 1){ S.phase = 'fall'; S.vy = 0; S.pDropY = S.jto + 60 }
+    } else if(S.phase === 'fall'){
+      S.vy += 320 * dt; S.pDropY = (S.pDropY || 0) + S.vy * dt; pyOff = S.pDropY;
+      if(pyOff > 30 && !S.splash2){ S.splash2 = true; sfx.splash(); P.add(PX + 12, ART.GROUND + 10, ['#b8e4f5', '#7ec4e6', '#fff'], 16, 70) }
+      if(S.cx + PW + 10 < PX - 2){ S.phase = 'gap'; S.blink = 1.2; S.pDropY = 0; S.vy = 0; S.splash2 = false; S.splashed = false; S.timeout = false }
+    }
+    if(S.phase === 'gap' && S.cx < -80){ S.cx = 999; S.phase = 'run'; S.t = 0 }
+    // Zeichnen
+    const gaps = S.cx < 900 ? [[S.cx - 4 | 0, S.cx + PW + 8 | 0]] : [];
+    ART.scene(c, S.th, S.t, S.off, { gaps });
+    if(S.cx < 900) S.opts.forEach((o, i) => { const crum = i !== S.choice ? 0 : S.phase === 'crumble' ? S.crumble : (S.phase === 'fall' && !S.timeout) ? 1 : 0; if(crum < 1) ART.platform(c, S.cx | 0, PLAT[i], PW, SLOT[i][1], SLOT[i][2], crum) });
+    if(G.look.pet) ART.creature(c, G.look.pet, PX - 30, ART.GROUND - 24 + (Math.sin(S.t * 10) > 0 ? -2 : 0), 2);
+    const visible = S.blink > 0 ? (Math.floor(S.blink * 10) % 2 === 0) : true; if(S.blink > 0) S.blink -= dt;
+    if(visible) ART.pip(c, PX, ART.GROUND - 30 + pyOff, G.look, (S.phase === 'jump' || S.phase === 'fall') ? 1 : S.frame, 2);
+    if(S.phase === 'ride' && S.pt < .8){ for(let i = 0; i < 3; i++) ART.coin(c, PX + 12 + i * 12 - 12, PLAT[S.choice] - 40 - S.pt * 30 + i * 3, S.t + i) }
+    P.step(c, dt);
+    // Zeitbalken
+    if(S.phase === 'approach'){ const k = Math.max(0, (S.cx - jumpAt) / (ART.W + 20 - jumpAt)); c.fillStyle = '#3b2d3f'; c.fillRect(8, 6, 82, 6); c.fillStyle = k > .3 ? '#5fc4a0' : '#e86a6a'; c.fillRect(9, 7, 80 * k | 0, 4) }
+  });
+}
+function confirmQuit(go){
+  overlay(`<div class="board dialog"><h2>Zur Karte?</h2><p>Die Münzen aus diesem Level behältst du.</p><div class="row"><button class="pbtn" id="ov-yes">Ja, zur Karte</button><button class="pbtn alt" id="ov-no">Weiterspielen</button></div></div>`,
+    { '#ov-yes': () => { closeOverlay(); go() }, '#ov-no': closeOverlay });
+}
+function endRun(S, quit){
+  stopLoop(); curView = 'result';
+  const k = S.u.id + ':' + S.li;
+  const stars = quit || S.hearts <= 0 ? 0 : S.errors === 0 ? 3 : S.errors <= 2 ? 2 : 1;
+  const prev = G.stars[k] || 0;
+  if(stars > prev) G.stars[k] = stars;
+  const bonus = stars * CFG.starBonus; if(bonus) addCoins(bonus);
+  log(S, 'game');
+  const nb = checkBadges();
+  save(); hud();
+  if(quit) return renderMap();
+  if(stars) sfx.win(); else sfx.wrong();
+  const title = stars === 3 ? 'Perfekt!' : stars === 2 ? 'Super gemacht!' : stars === 1 ? 'Geschafft!' : 'Fast!';
+  overlay(`<div class="board dialog">
+    <h2>${title}</h2>
+    <div class="bigstars">${[1, 2, 3].map(s => `<i class="${stars >= s ? 'on' : ''}"></i>`).join('')}</div>
+    ${stars ? '' : '<p>Die Herzen sind leer. Versuch es nochmals, du schaffst das!</p>'}
+    <div class="gains"><span><i class="coin"></i>+${S.coins + bonus}</span><span>${S.correct} / ${S.items.length} richtig</span></div>
+    ${nb.length ? `<p><b>Neues Abzeichen:</b> ${nb.map(b => esc(b[1])).join(', ')}</p>` : ''}
+    <div class="row"><button class="pbtn" id="ov-next">${stars ? 'Weiter' : 'Nochmals'}</button><button class="pbtn alt" id="ov-map">Zur Karte</button></div></div>`,
+    { '#ov-next': () => { closeOverlay(); afterDaily(S, () => { const list = units.filter(u => (u.level || '') === group); const wi = list.indexOf(S.u);
+        if(!stars) startRun(S.u, S.li, wi); else if(S.li < 3) startRun(S.u, S.li + 1, wi); else startBoss(S.u, wi) }) },
+      '#ov-map': () => { closeOverlay(); afterDaily(S, renderMap) } });
+}
+function afterDaily(S, then){
+  if(S.dailyNow){ S.dailyNow = false; sfx.level(); overlay(`<div class="board dialog"><h2>Tagesziel geschafft!</h2><p>${CFG.dailySecs / 60} Minuten geübt. Dafür gibt es eine Truhe!</p><button class="pbtn" id="ov-ok">Truhe öffnen</button></div>`, { '#ov-ok': () => { closeOverlay(); openChest('daily', then) } }) }
+  else then();
+}
+function log(S, kind){
+  if(!S.correct && !S.errors) return;
+  sb.rpc('kid_log', { p_name: kid.name, p_pin: kid.pin, p_kind: kind, p_units: [S.u.id], p_answers: S.correct + S.errors, p_correct: S.correct, p_seconds: Math.round(S.secs), p_started: S.started })
+    .then(({ error }) => { if(error) console.error(error) });
+}
+
+/* ---------- Boss ---------- */
+function startBoss(u, wi){
+  curView = 'game';
+  const th = ART.THEMES[wi % ART.THEMES.length];
+  const items = pickWords(u, CFG.bossHP + 6);
+  const S = { u, li: 4, th, items, qi: -1, hp: CFG.bossHP, hearts: CFG.hearts, combo: 0, errors: 0, correct: 0, coins: 0, secs: 0, lastAct: Date.now(), started: new Date().toISOString(), t: 0, charge: 0, shots: [], hurt: 0, shake: 0, phurt: 0, phase: 'fight' };
+  const P = particles();
+  $('#screen').innerHTML = `<section class="stage">
+    <div class="qbar"><div class="hearts" id="hearts"></div><span class="combo" id="combo"></span><button class="hud-btn" id="quit">Karte</button></div>
+    <div class="bossbar"><span>${esc(th.bossName)}</span><span class="hp"><i id="hp" style="width:100%"></i></span></div>
+    <div class="canvasbox" id="box"><canvas id="cv" width="${ART.W}" height="${ART.H}"></canvas></div>
+    <div class="board typebox">
+      <div class="qword" id="q"></div>
+      <div class="charge"><i id="charge"></i></div>
+      <form id="f" autocomplete="off"><input id="inp" aria-label="Französisches Wort" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="auf Französisch …"><button class="pbtn" type="submit">Wurf!</button></form>
+      <div class="accents">${ACC.map(a => `<button type="button" data-c="${esc(a)}">${esc(a)}</button>`).join('')}</div>
+      <p class="msg" id="msg">Schreib das Wort auf Französisch. Jedes richtige Wort trifft ${esc(th.bossName)}!</p>
+    </div></section>`;
+  const cv = $('#cv'), c = cv.getContext('2d'), box = $('#box'), inp = $('#inp');
+  const hearts = () => { $('#hearts').innerHTML = Array.from({ length: CFG.hearts }, (_, i) => `<i class="${i < S.hearts ? '' : 'off'}"></i>`).join('') };
+  hearts();
+  $('#quit').onclick = () => confirmQuit(() => { stopLoop(); log(S, 'game'); save(); renderMap() });
+  document.querySelectorAll('.accents button').forEach(b => b.onclick = () => { const p = inp.selectionStart ?? inp.value.length; inp.value = inp.value.slice(0, p) + b.dataset.c + inp.value.slice(inp.selectionEnd ?? p); inp.focus(); inp.setSelectionRange(p + 1, p + 1) });
+  function nextQ(){
+    S.qi++; if(S.qi >= S.items.length) S.items.push(...pickWords(u, 4));
+    const x = S.items[S.qi]; S.charge = 0;
+    $('#q').innerHTML = `<span>${esc(x.w.de)}<small>Wie heisst das auf Französisch?</small></span>`;
+    inp.value = ''; inp.disabled = false; inp.focus();
+  }
+  function mult(){ return Math.min(CFG.comboMax, 1 + Math.floor(S.combo / CFG.comboStep)) }
+  function answer(val){
+    if(S.phase !== 'fight') return;
+    const x = S.items[S.qi]; activeTick(S);
+    const r = val === null ? { r: 'wrong' } : check(val, x.w.fr);
+    const hit = r.r === 'ok' || r.r === 'accent' || r.r === 'article';
+    leitner(x.key, r.r === 'ok' || r.r === 'accent', true);
+    G.totals.answers++;
+    const msg = $('#msg');
+    if(hit){
+      S.combo++; S.correct++; G.totals.correct++; prog.stars = (prog.stars || 0) + 1; G.totals.bestCombo = Math.max(G.totals.bestCombo, S.combo);
+      const gain = CFG.bossCoin * mult(); S.coins += gain; addCoins(gain); addXP(CFG.xpCorrect + 5);
+      S.shots.push({ x: 80, y: ART.GROUND - 22, t: 0, from: 'me' }); sfx.jump(); speak(x.w.fr);
+      msg.className = 'msg ok'; msg.textContent = r.r === 'ok' ? 'Treffer!' : r.r === 'accent' ? `Treffer! Achte auf die Akzente: ${x.w.fr}` : `Treffer! Aber nicht den Artikel vergessen: ${x.w.fr}`;
+      floatText(box, '+' + gain, 20, 50, '#fff3b0');
+    } else {
+      S.combo = 0; S.errors++;
+      S.shots.push({ x: 210, y: 70, t: 0, from: 'boss' }); sfx.wrong();
+      msg.className = 'msg bad'; msg.textContent = (val === null ? 'Zu langsam! ' : 'Leider falsch. ') + 'Richtig ist: ' + x.w.fr;
+      setTimeout(() => speak(x.w.fr), 300);
+      S.items.push(x); // kommt nochmals dran
+    }
+    $('#combo').textContent = S.combo >= 2 ? `Kombo ${S.combo} · ×${mult()}` : '';
+    touchDay(); save();
+    inp.disabled = true;
+    setTimeout(() => { if(S.phase === 'fight') nextQ() }, hit ? 900 : 1900);
+  }
+  $('#f').onsubmit = e => { e.preventDefault(); if(!inp.value.trim()) return inp.focus(); answer(inp.value) };
+  keyFn = e => { if(e.key === 'Escape') $('#quit').click() }; addEventListener('keydown', keyFn);
+  nextQ();
+  startLoop(dt => {
+    S.t += dt;
+    if(S.phase === 'fight' && !inp.disabled){ S.charge += dt / CFG.bossTime; $('#charge').style.width = Math.min(100, S.charge * 100) + '%'; if(S.charge >= 1) answer(null) }
+    ART.scene(c, S.th, S.t, S.t * 6, { night: true });
+    // Geschosse
+    for(let i = S.shots.length - 1; i >= 0; i--){
+      const s = S.shots[i]; s.t += dt;
+      const k = Math.min(1, s.t / .45);
+      if(s.from === 'me'){ const x = 80 + (224 - 80) * k, y = ART.GROUND - 22 - Math.sin(k * Math.PI) * 50 + (70 - ART.GROUND + 22) * k;
+        c.fillStyle = '#fff3b0'; c.fillRect(x - 2 | 0, y - 2 | 0, 5, 5); c.fillStyle = '#f2c94c'; c.fillRect(x - 1 | 0, y - 1 | 0, 3, 3); P.add(x, y, '#fff3b0', 1, 10);
+        if(k >= 1){ S.shots.splice(i, 1); S.hp--; S.hurt = .3; S.shake = .3; sfx.hit(); P.add(225, 70, CONFETTI, 14, 70); $('#hp').style.width = Math.max(0, S.hp / CFG.bossHP * 100) + '%'; if(S.hp <= 0) win() } }
+      else { const x = 210 + (66 - 210) * k, y = 70 + (ART.GROUND - 20 - 70) * k;
+        c.fillStyle = '#7ec4e6'; c.fillRect(x | 0, y | 0, 3, 5); c.fillStyle = '#b8e4f5'; c.fillRect(x | 0, y | 0, 1, 2);
+        if(k >= 1){ S.shots.splice(i, 1); S.hearts--; S.phurt = 1; hearts(); P.add(66, ART.GROUND - 16, ['#7ec4e6', '#b8e4f5'], 10, 50); if(S.hearts <= 0) lose() } }
+    }
+    const bob = Math.sin(S.t * 2) * 4, sx = S.shake > 0 ? (Math.random() - .5) * 4 : 0;
+    if(S.hurt > 0) S.hurt -= dt; if(S.shake > 0) S.shake -= dt;
+    if(S.phase !== 'won') ART.boss(c, 205 + sx, 52 + bob, S.th.boss[0], S.th.boss[1], S.hurt > 0, 2);
+    if(G.look.pet) ART.creature(c, G.look.pet, 20, ART.GROUND - 24 + (Math.sin(S.t * 6) > 0 ? -2 : 0), 2);
+    const vis = S.phurt > 0 ? Math.floor(S.phurt * 10) % 2 === 0 : true; if(S.phurt > 0) S.phurt -= dt;
+    if(vis) ART.pip(c, 54, ART.GROUND - 30, G.look, Math.floor(S.t * 4) % 3 === 0 ? 0 : 2, 2);
+    if(S.phase === 'won'){ ART.chest(c, 206, ART.GROUND - 24 - Math.max(0, 40 - S.wt * 80), 2, true); S.wt += dt }
+    P.step(c, dt);
+  });
+  function win(){
+    S.phase = 'won'; S.wt = 0; sfx.win(); inp.disabled = true;
+    P.add(225, 70, CONFETTI, 60, 120);
+    const k = u.id + ':4', stars = S.errors === 0 ? 3 : S.errors <= 2 ? 2 : 1;
+    if(stars > (G.stars[k] || 0)) G.stars[k] = stars;
+    G.totals.bosses++; addCoins(CFG.bossWin);
+    log(S, 'game'); const nb = checkBadges(); save();
+    setTimeout(() => { stopLoop(); overlay(`<div class="board dialog"><h2>${esc(S.th.bossName)} ist besiegt!</h2>
+      <div class="bigstars">${[1, 2, 3].map(s => `<i class="${stars >= s ? 'on' : ''}"></i>`).join('')}</div>
+      <div class="gains"><span><i class="coin"></i>+${S.coins + CFG.bossWin}</span><span>${S.correct} Treffer</span></div>
+      ${nb.length ? `<p><b>Neues Abzeichen:</b> ${nb.map(b => esc(b[1])).join(', ')}</p>` : ''}
+      <p>Der Boss hat eine goldene Truhe fallen lassen!</p><button class="pbtn" id="ov-ok">Truhe öffnen</button></div>`,
+      { '#ov-ok': () => { closeOverlay(); openChest('boss', () => afterDaily(S, renderMap)) } }) }, 1400);
+  }
+  function lose(){
+    S.phase = 'lost'; inp.disabled = true; sfx.wrong(); log(S, 'game'); save();
+    setTimeout(() => { stopLoop(); overlay(`<div class="board dialog"><h2>Ups, keine Herzen mehr!</h2><p>${esc(S.th.bossName)} hat noch ${S.hp} Leben. Mit jedem Versuch kennst du mehr Wörter.</p>
+      <div class="gains"><span><i class="coin"></i>+${S.coins}</span></div><div class="row"><button class="pbtn" id="ov-again">Nochmals</button><button class="pbtn alt" id="ov-map">Zur Karte</button></div></div>`,
+      { '#ov-again': () => { closeOverlay(); afterDaily(S, () => startBoss(u, wi)) }, '#ov-map': () => { closeOverlay(); afterDaily(S, renderMap) } }) }, 900);
+  }
+}
+
+/* ---------- Truhen ---------- */
+function openChest(kind, then){
+  const w = kind === 'boss' || kind === 'team' ? CFG.rarityBoss : CFG.rarity;
+  let r = Math.random() * w.reduce((a, b) => a + b), rar = 0; while(r > w[rar]){ r -= w[rar]; rar++ }
+  const pool = ART.CREATURES.filter(c => c[5] === rar);
+  const fresh = pool.filter(c => !G.cards[c[0]]);
+  const src = fresh.length && Math.random() < .7 ? fresh : pool;
+  const pick = src[Math.random() * src.length | 0] || pool[0];
+  const isNew = !G.cards[pick[0]];
+  G.cards[pick[0]] = (G.cards[pick[0]] || 0) + 1;
+  if(!isNew) G.coins += CFG.dupCoins;
+  const nb = checkBadges(); save(); hud();
+  overlay(`<div class="board dialog"><h2>${kind === 'team' ? 'Teamtruhe!' : kind === 'daily' ? 'Tagestruhe!' : 'Truhe!'}</h2>
+    <div class="chest"><canvas id="ch" width="32" height="32"></canvas></div><p class="hint" id="ch-hint">Tippe auf die Truhe!</p>
+    <div id="ch-res" hidden><h3 style="font-size:1.6rem">${esc(pick[1])}</h3><p><span class="rar r${rar}">${['Normal', 'Selten', 'Episch'][rar]}</span></p>
+      <p>${isNew ? 'Neu in deinem Album!' : `Hast du schon. Dafür gibt es ${CFG.dupCoins} Münzen.`}</p>
+      ${nb.length ? `<p><b>Neues Abzeichen:</b> ${nb.map(b => esc(b[1])).join(', ')}</p>` : ''}
+      <div class="row"><button class="pbtn" id="ov-ok">Super!</button>${isNew ? '<button class="pbtn alt" id="ov-pet">Als Begleiter</button>' : ''}</div></div></div>`, {});
+  const cv = $('#ch'), c = cv.getContext('2d'); let opened = false, t = 0, id = 0;
+  const drawC = () => { c.clearRect(0, 0, 32, 32); if(!opened){ const s = Math.sin(t * 20) * (t % 1.2 > .9 ? 1 : 0); ART.chest(c, 8 + s, 12, 1, kind !== 'daily') } else ART.creature(c, pick[0], 10, 10 - Math.max(0, 6 - t * 20), 1); t += .016; id = requestAnimationFrame(drawC) };
+  drawC();
+  const openIt = () => { if(opened) return; opened = true; t = 0; sfx.chest(); $('#ch-hint').hidden = true; $('#ch-res').hidden = false;
+    $('#ov-ok').onclick = () => { cancelAnimationFrame(id); closeOverlay(); then && then() };
+    const pb = $('#ov-pet'); if(pb) pb.onclick = () => { G.look.pet = pick[0]; save(); cancelAnimationFrame(id); closeOverlay(); then && then() } };
+  cv.parentElement.onclick = openIt; cv.parentElement.style.cursor = 'pointer';
+}
+
+/* ---------- Abzeichen ---------- */
+function checkBadges(){ const nb = BADGES.filter(b => !G.badges[b[0]] && b[3](G)); nb.forEach(b => G.badges[b[0]] = today()); return nb }
+function badgeIcon(cv, i, on){
+  const c = cv.getContext('2d'); c.clearRect(0, 0, 28, 28);
+  const cols = ['#f2b84b', '#e86a6a', '#5fc4a0', '#7ec4e6', '#b9a3e3'];
+  c.fillStyle = ART.INK; c.fillRect(6, 2, 16, 3); c.fillRect(3, 5, 22, 16); c.fillRect(6, 21, 16, 3); c.fillRect(10, 24, 8, 3);
+  c.fillStyle = on ? cols[i % cols.length] : '#d9c9b2'; c.fillRect(7, 3, 14, 2); c.fillRect(4, 6, 20, 14); c.fillRect(7, 21, 14, 2); c.fillRect(11, 24, 6, 2);
+  c.fillStyle = on ? '#fff3b0' : '#efe4d4'; const st = [[13, 8], [12, 10], [13, 10], [14, 10], [10, 11], [11, 11], [12, 11], [13, 11], [14, 11], [15, 11], [16, 11], [11, 12], [12, 12], [13, 12], [14, 12], [15, 12], [12, 13], [13, 13], [14, 13], [11, 14], [12, 14], [14, 14], [15, 14], [10, 15], [11, 15], [15, 15], [16, 15]];
+  st.forEach(([x, y]) => c.fillRect(x, y, 1, 1));
+}
+function renderBadges(){
+  curView = 'badges';
+  $('#screen').innerHTML = `<section class="board"><div class="panelhead"><h2>Abzeichen</h2><span class="hint">${Object.keys(G.badges).length} von ${BADGES.length}</span></div></section>
+    <section class="grid">${BADGES.map((b, i) => `<div class="item badge ${G.badges[b[0]] ? '' : 'locked'}"><canvas width="28" height="28" data-b="${i}"></canvas><b>${esc(b[1])}</b><small>${esc(b[2])}</small></div>`).join('')}</section>
+    <section class="board"><p class="hint">${G.totals.correct} Wörter richtig · beste Kombo ${G.totals.bestCombo} · ${G.totals.bosses} Bosse besiegt · Tagesziel ${G.daily.count || 0} Mal geschafft</p></section>`;
+  document.querySelectorAll('[data-b]').forEach(cv => badgeIcon(cv, +cv.dataset.b, !!G.badges[BADGES[+cv.dataset.b][0]]));
+}
+
+/* ---------- Shop ---------- */
+let shopTab = 'hat';
+function renderShop(){
+  curView = 'shop';
+  const items = SHOP.filter(s => s.kind === shopTab);
+  $('#screen').innerHTML = `<section class="board"><div class="panelhead"><h2>Shop</h2><nav class="tabs2"><button data-t="hat" aria-pressed="${shopTab === 'hat'}">Mützen</button><button data-t="color" aria-pressed="${shopTab === 'color'}">Farben</button></nav></div><p class="hint">Münzen verdienst du mit richtigen Wörtern.</p></section>
+    <section class="grid">${items.map(s => {
+      const own = !!G.owned[s.id], worn = s.kind === 'hat' ? G.look.hat === s.key : G.look.color === s.key;
+      return `<div class="item ${worn ? 'worn' : ''}"><canvas width="16" height="20" data-s="${s.id}"></canvas><b>${esc(s.name)}</b>
+        ${own ? `<button class="${worn ? 'alt' : ''}" data-wear="${s.id}">${worn ? (s.kind === 'hat' ? 'Ablegen' : 'Trägst du') : 'Anziehen'}</button>` : `<span class="price"><i class="coin"></i>${s.price}</span><button data-buy="${s.id}" ${G.coins < s.price ? 'disabled' : ''}>Kaufen</button>`}</div>`;
+    }).join('')}</section>`;
+  document.querySelectorAll('[data-t]').forEach(b => b.onclick = () => { sfx.click(); shopTab = b.dataset.t; renderShop() });
+  document.querySelectorAll('[data-s]').forEach(cv => { const s = SHOP.find(x => x.id === cv.dataset.s); avatarCanvas(cv, s.kind === 'hat' ? { ...G.look, hat: s.key } : { ...G.look, color: s.key }) });
+  document.querySelectorAll('[data-buy]').forEach(b => b.onclick = () => { const s = SHOP.find(x => x.id === b.dataset.buy); if(G.coins < s.price) return; G.coins -= s.price; G.owned[s.id] = 1; s.kind === 'hat' ? G.look.hat = s.key : G.look.color = s.key; sfx.buy(); const nb = checkBadges(); if(nb.length) toast('Neues Abzeichen: ' + nb[0][1]); save(); hud(); renderShop() });
+  document.querySelectorAll('[data-wear]').forEach(b => b.onclick = () => { const s = SHOP.find(x => x.id === b.dataset.wear); if(s.kind === 'hat') G.look.hat = G.look.hat === s.key ? null : s.key; else G.look.color = s.key; sfx.click(); save(); hud(); renderShop() });
+}
+
+/* ---------- Album ---------- */
+function renderAlbum(){
+  curView = 'album';
+  const n = Object.keys(G.cards).length;
+  $('#screen').innerHTML = `<section class="board"><div class="panelhead"><h2>Album</h2><span class="hint">${n} von ${ART.CREATURES.length} Wesen</span></div><p class="hint">Truhen gibt es für besiegte Bosse, das Tagesziel und das Teamziel. Ein Wesen kann dich als Begleiter durchs Spiel begleiten.</p></section>
+    <section class="grid">${ART.CREATURES.map(cr => { const have = G.cards[cr[0]];
+      return `<div class="item cre ${have ? (G.look.pet === cr[0] ? 'worn' : '') : 'locked'}"><canvas width="14" height="14" data-c="${cr[0]}"></canvas><b>${have ? esc(cr[1]) : '???'}</b><span class="rar r${cr[5]}">${['Normal', 'Selten', 'Episch'][cr[5]]}</span>
+        ${have ? `<button class="${G.look.pet === cr[0] ? 'alt' : ''}" data-pet="${cr[0]}">${G.look.pet === cr[0] ? 'Begleitet dich' : 'Als Begleiter'}</button>${have > 1 ? `<small>${have}×</small>` : ''}` : ''}</div>` }).join('')}</section>`;
+  document.querySelectorAll('[data-c]').forEach(cv => ART.creature(cv.getContext('2d'), cv.dataset.c, 1, 1, 1));
+  document.querySelectorAll('[data-pet]').forEach(b => b.onclick = () => { G.look.pet = G.look.pet === b.dataset.pet ? null : b.dataset.pet; sfx.click(); save(); renderAlbum() });
+}
+
+/* ---------- Overlay ---------- */
+function overlay(html, handlers){
+  closeOverlay();
+  const o = document.createElement('div'); o.className = 'overlay'; o.id = 'ov'; o.innerHTML = html; document.body.appendChild(o);
+  Object.entries(handlers || {}).forEach(([sel, fn]) => { const el = o.querySelector(sel); if(el) el.onclick = () => { sfx.click(); fn() } });
+  const first = o.querySelector('button'); if(first) first.focus();
+}
+function closeOverlay(){ const o = $('#ov'); if(o) o.remove() }
+
+init();

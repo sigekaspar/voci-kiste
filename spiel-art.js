@@ -1,0 +1,186 @@
+// Voci-Abenteuer · Pixelgrafik: Figuren, Wesen, Bosse und gemütliche Landschaften
+const ART = (() => {
+  const INK = '#3b2d3f';
+  // ---------- Figur «Pip» (12×14) ----------
+  const PIP_HEAD = [
+    '...kkkkkk...',
+    '..kssssssk..',
+    '.kssssssssk.',
+    '.kssesssesk.',
+    '.kcssssssck.',
+    '..kssmmssk..',
+    '...kkkkkk...'];
+  const PIP_BODY = [
+    '..kHhhhhhHk.',
+    '.kHhhhhhhhHk',
+    '.khhhhwwhhhk',
+    '..kHhhhhhHk.'];
+  const LEGS = [
+    ['..kppkkppk..', '..kppk.kppk.', '.kbbk...kbbk', '.kkk.....kkk'],
+    ['...kppppk...', '...kpkkpk...', '..kbbkkbbk..', '..kkk..kkk..'],
+    ['..kppkkppk..', '.kppk..kppk.', 'kbbk....kbbk', 'kkk......kkk']];
+  const COLORS = {
+    berry: ['#e86a6a', '#b54646', 'Himbeere'], mint: ['#5fc4a0', '#3a9479', 'Minze'], sky: ['#7ec4e6', '#4a8fb5', 'Himmel'],
+    lav: ['#b9a3e3', '#8a72bf', 'Lavendel'], honey: ['#f2b84b', '#c98a24', 'Honig'], cocoa: ['#a0704e', '#6e4a31', 'Kakao'], night: ['#4b5a8a', '#2f3a63', 'Nacht']
+  };
+  const HATS = {
+    beret: { name: 'Béret', rows: ['....kkk.....', '..kkRRRkk...', '.kRRRRRRRk..', '.kkkkkkkkkk.'], pal: { R: '#3e4a7a' }, dy: -3 },
+    crown: { name: 'Krone', rows: ['..k..k..k...', '.kYkkYkkYk..', '.kYYYYYYYk..', '.kkkkkkkkk..'], pal: { Y: '#f2c94c' }, dy: -3 },
+    cap: { name: 'Mütze', rows: ['...kkkkk....', '..kRRRRRk...', '.kRRRRRRRkkk', '.kkkkkkkkkkk'], pal: { R: '#e86a6a' }, dy: -3 },
+    flower: { name: 'Blume', rows: ['......kk....', '.....kPPk...', '......kk....'], pal: { P: '#f7a1c4' }, dy: -2 },
+    helmet: { name: 'Ritterhelm', rows: ['.....k......', '...kkGkk....', '..kGGGGGk...', '.kGGGGGGGk..', '.kGkkkkkGk..'], pal: { G: '#b8c0cc' }, dy: -4 },
+    wizard: { name: 'Zauberhut', rows: ['......kk....', '.....kVVk...', '....kVYVk...', '...kVVVVVk..', '..kVVVVVVVk.', '.kkkkkkkkkkk'], pal: { V: '#7b5fc4', Y: '#f2c94c' }, dy: -5 },
+    chef: { name: 'Kochmütze', rows: ['..kkk.kkk...', '.kWWWkWWWk..', '.kWWWWWWWk..', '..kWWWWWk...', '..kkkkkkk...'], pal: { W: '#ffffff' }, dy: -4 }
+  };
+  const BASEPAL = { k: INK, s: '#f7c9a3', e: '#2a2230', c: '#f29b9b', m: '#c0505a', w: '#ffffff', p: '#5a4a6b', b: '#6b4a3a' };
+
+  function draw(ctx, rows, pal, x, y, flip = false, scale = 1){
+    const w = rows[0].length;
+    for(let r = 0; r < rows.length; r++) for(let c = 0; c < w; c++){
+      const ch = rows[r][c]; if(ch === '.') continue;
+      const col = pal[ch]; if(!col) continue;
+      ctx.fillStyle = col;
+      ctx.fillRect(Math.round(x + (flip ? w - 1 - c : c) * scale), Math.round(y + r * scale), scale, scale);
+    }
+  }
+  function pip(ctx, x, y, look = {}, frame = 0, scale = 1){
+    const col = COLORS[look.color] || COLORS.berry;
+    const pal = { ...BASEPAL, h: col[0], H: col[1] };
+    draw(ctx, PIP_HEAD, pal, x, y, false, scale);
+    draw(ctx, PIP_BODY, pal, x, y + 7 * scale, false, scale);
+    draw(ctx, LEGS[frame % 3], pal, x, y + 11 * scale, false, scale);
+    const hat = HATS[look.hat];
+    if(hat) draw(ctx, hat.rows, { k: INK, ...hat.pal }, x, y + hat.dy * scale, false, scale);
+  }
+  // ---------- Pixel-Wesen fürs Album (12×12) ----------
+  const SHAPES = {
+    blob: ['....kkkk....', '..kkBBBBkk..', '.kBBBBBBBBk.', '.kBBWBBWBBk.', 'kBBBeBBeBBBk', 'kBBBBBBBBBBk', 'kBcBBmmBBcBk', 'kBBBBBBBBBBk', '.kBBBBBBBBk.', '.kDDDDDDDDk.', '..kkkkkkkk..', '............'],
+    bird: ['....kkk.....', '...kBBBk....', '..kBBBBBk...', '..kBeBBBkkk.', '.kOkBBBBBBk.', '..kkBBBBBDk.', '...kBBBBDDk.', '...kBWWBDk..', '....kBBBk...', '.....kOk....', '.....kOk....', '....kk.kk...'],
+    bunny: ['..kk....kk..', '.kBk....kBk.', '.kPk....kPk.', '.kBk....kBk.', '..kkBBBBkk..', '.kBBBBBBBBk.', '.kBeBBBBeBk.', '.kBBcmmcBBk.', '..kBBBBBBk..', '.kBBWWWWBBk.', '.kBBBBBBBBk.', '..kkk..kkk..'],
+    snail: ['............', '.....kkkk...', '....kSSSSk..', '...kSkkkSSk.', '...kSkSSkSk.', 'k..kSkkSkSk.', 'kek.kSSSkSk.', 'kBk..kkkSSk.', 'kBBkkkkkkkk.', 'kBBBBBBBBBk.', '.kkkkkkkkkk.', '............'],
+    fox: ['.k........k.', 'kOk......kOk', 'kOOk....kOOk', 'kOOOkkkkOOOk', '.kOOOOOOOOk.', '.kOeOOOOeOk.', '.kOOWkkWOOk.', '..kWWWWWWk..', '...kOOOOk...', '..kOOOOOOk..', '..kOkOOkOk..', '..kk.kk.kk..']
+  };
+  const CREATURES = [
+    ['croquette', 'Croquette', 'blob', '#f2b84b', '#c98a24', 0], ['pomponne', 'Pomponne', 'blob', '#f7a1c4', '#d4709a', 0], ['menthe', 'Menthe', 'blob', '#5fc4a0', '#3a9479', 0],
+    ['piou', 'Piou', 'bird', '#7ec4e6', '#4a8fb5', 0], ['cerise', 'Cerise', 'bird', '#e86a6a', '#b54646', 0], ['lilas', 'Lilas', 'bird', '#b9a3e3', '#8a72bf', 1],
+    ['noisette', 'Noisette', 'bunny', '#c9a27e', '#8f6c4e', 0], ['flocon', 'Flocon', 'bunny', '#f4f1ff', '#c3bde0', 1], ['caramel', 'Caramel', 'bunny', '#e0a35c', '#a8743a', 0],
+    ['escargot', 'Escargot', 'snail', '#a7d18a', '#6e9b55', 0], ['galette', 'Galette', 'snail', '#f2c94c', '#b8902a', 1], ['orage', 'Orage', 'snail', '#6c7bb5', '#465390', 1],
+    ['renardo', 'Renardo', 'fox', '#ef8a4a', '#b85e2a', 1], ['neige', 'Neige', 'fox', '#eef2fb', '#b8c2d8', 2], ['etoile', 'Étoile', 'blob', '#ffe27a', '#e0a92a', 2], ['minuit', 'Minuit', 'fox', '#4b5a8a', '#2f3a63', 2]
+  ];
+  function creature(ctx, id, x, y, scale = 1){
+    const c = CREATURES.find(c => c[0] === id); if(!c) return;
+    const pal = { k: INK, B: c[3], D: c[4], W: '#ffffff', e: '#2a2230', c: '#f29b9b', m: '#c0505a', O: c[2] === 'fox' ? c[3] : '#f2a23a', P: '#f7a1c4', S: c[4] };
+    draw(ctx, SHAPES[c[2]], pal, x, y, false, scale);
+  }
+  // ---------- Boss-Wolke (20×16) ----------
+  const BOSS = [
+    '.......kkkkk........', '.....kkBBBBBkk......', '....kBBBBBBBBBkkk...', '..kkBBBBBBBBBBBBBk..', '.kBBBBBBBBBBBBBBBBk.', '.kBBkkBBBBBBBkkBBBk.',
+    'kBBBBBkkBBBkkBBBBBBk', 'kBBBBkeekBkeekBBBBBk', 'kBBBBkeekBkeekBBBBBk', 'kBBBBBkkBBBkkBBBBBBk', 'kBBBBBBBkkkBBBBBBBBk', '.kBBBBBkBBBkBBBBBBk.',
+    '.kDDBBBBBBBBBBBBDDk.', '..kDDDDDDDDDDDDDDk..', '...kkkkkkkkkkkkkk...', '....................'];
+  function boss(ctx, x, y, base, dark, hurt = false, scale = 1){
+    draw(ctx, BOSS, { k: INK, B: hurt ? '#ffffff' : base, D: hurt ? '#ffd0d0' : dark, e: '#fff7c2' }, x, y, false, scale);
+  }
+  // ---------- Truhe (16×13) ----------
+  const CHEST = ['..kkkkkkkkkkkk..', '.kWWWWWWWWWWWWk.', 'kWwwwwwwwwwwwwWk', 'kWwwwwwwwwwwwwWk', 'kkkkkkkYYkkkkkkk', 'kWWWWWkYYkWWWWWk', 'kWwwwwkkkkwwwwWk', 'kWwwwwwwwwwwwwWk', 'kWwwwwwwwwwwwwWk', 'kWwwwwwwwwwwwwWk', 'kWWWWWWWWWWWWWWk', '.kkkkkkkkkkkkkk.'];
+  function chest(ctx, x, y, scale = 1, gold = false){ draw(ctx, CHEST, { k: INK, W: gold ? '#c98a24' : '#8a5a3c', w: gold ? '#f2c94c' : '#b07a52', Y: '#f2c94c' }, x, y, false, scale) }
+
+  // ---------- Landschaften ----------
+  const THEMES = [
+    { name: 'Wiese', sky: ['#ffe3c4', '#f7c2c9', '#e5b3d3'], hill1: '#c3d9a0', hill2: '#8fc276', hill3: '#6aa55d', ground: '#7a5236', grass: '#7fb069', boss: ['#9aa0b8', '#6c7290'], bossName: 'Grognon' },
+    { name: 'See', sky: ['#d8f0ff', '#b9dcf2', '#c9c4ee'], hill1: '#a9cfe0', hill2: '#7fb6cc', hill3: '#5a9a8a', ground: '#6e5038', grass: '#6aa86f', boss: ['#7f8fb0', '#55628a'], bossName: 'Brumo' },
+    { name: 'Herbst', sky: ['#ffe2b5', '#f9c28f', '#f0a39a'], hill1: '#e8b77a', hill2: '#d48f52', hill3: '#a8683a', ground: '#6b4430', grass: '#c08a3e', boss: ['#a98a8a', '#7a5e5e'], bossName: 'Ronchon' },
+    { name: 'Abendrot', sky: ['#ffd3b0', '#f3a3b5', '#b897d6'], hill1: '#d8a3c4', hill2: '#a983b8', hill3: '#7d6aa3', ground: '#5c4258', grass: '#8a7bb5', boss: ['#8c7aa8', '#63557f'], bossName: 'Bougon' },
+    { name: 'Schnee', sky: ['#eef3ff', '#d9e2f7', '#c9cdee'], hill1: '#ffffff', hill2: '#dfe7f5', hill3: '#b9c7e0', ground: '#7f7a95', grass: '#e9f0fb', boss: ['#a3b1cc', '#75839f'], bossName: 'Frisson' },
+    { name: 'Garten', sky: ['#fff0c9', '#ffd6a8', '#f6b9a8'], hill1: '#d6e6a0', hill2: '#a7cf7c', hill3: '#7fb069', ground: '#7a5236', grass: '#8cc06b', boss: ['#b0a080', '#82735a'], bossName: 'Grincheux' }
+  ];
+  const W = 320, H = 180, GROUND = 150;
+  function hash(n){ n = Math.sin(n * 127.1) * 43758.5453; return n - Math.floor(n) }
+  function sky(ctx, th, night){
+    const cols = night ? ['#2b2440', '#3b3160', '#5a4a80'] : th.sky;
+    const band = H / 3;
+    for(let i = 0; i < 3; i++){ ctx.fillStyle = cols[i]; ctx.fillRect(0, i * band | 0, W, band + 1 | 0) }
+    // Pixel-Dither zwischen den Bändern
+    for(let i = 1; i < 3; i++){ ctx.fillStyle = cols[i]; for(let x = 0; x < W; x += 2) ctx.fillRect(x + (i % 2), (i * band | 0) - 2, 1, 1), ctx.fillRect(x, (i * band | 0) - 4, 1, 1) }
+  }
+  function hills(ctx, col, base, amp, freq, off, seed){
+    ctx.fillStyle = col;
+    for(let x = 0; x < W; x++){
+      const wx = x + off;
+      const h = Math.sin((wx + seed) * freq) * amp + Math.sin((wx + seed * 3) * freq * 2.3) * amp * .35;
+      const top = Math.round(base - h);
+      ctx.fillRect(x, top, 1, H - top);
+    }
+  }
+  function cloud(ctx, x, y, s){
+    ctx.fillStyle = '#fffaf2';
+    ctx.fillRect(x + 2 * s, y, 8 * s, 2 * s); ctx.fillRect(x, y + 2 * s, 14 * s, 3 * s); ctx.fillRect(x + 4 * s, y - 2 * s, 5 * s, 2 * s);
+    ctx.fillStyle = '#f3e4dc'; ctx.fillRect(x, y + 4 * s, 14 * s, 1 * s);
+  }
+  function tree(ctx, x, y, th){
+    ctx.fillStyle = INK; ctx.fillRect(x + 4, y + 10, 4, 9);
+    ctx.fillStyle = '#6b4a3a'; ctx.fillRect(x + 5, y + 10, 2, 9);
+    ctx.fillStyle = INK; ctx.fillRect(x - 1, y - 1, 14, 13);
+    ctx.fillStyle = th.hill3; ctx.fillRect(x, y, 12, 11);
+    ctx.fillStyle = th.hill2; ctx.fillRect(x + 1, y + 1, 7, 5);
+    ctx.fillStyle = '#ffffff33'; ctx.fillRect(x + 2, y + 2, 2, 2);
+  }
+  function house(ctx, x, y){
+    ctx.fillStyle = INK; ctx.fillRect(x - 1, y + 5, 20, 15); ctx.fillRect(x - 3, y + 3, 24, 4); ctx.fillRect(x + 2, y - 2, 14, 6);
+    ctx.fillStyle = '#fff3dd'; ctx.fillRect(x, y + 6, 18, 13);
+    ctx.fillStyle = '#d9645c'; ctx.fillRect(x - 2, y + 4, 22, 2); ctx.fillRect(x + 3, y - 1, 12, 5);
+    ctx.fillStyle = '#f2c94c'; ctx.fillRect(x + 3, y + 9, 4, 4);
+    ctx.fillStyle = '#8a5a3c'; ctx.fillRect(x + 11, y + 11, 4, 8);
+  }
+  function ground(ctx, th, off, gaps = []){
+    for(let x = 0; x < W; x++){
+      if(gaps.some(([a, b]) => x >= a && x < b)) continue;
+      const wx = Math.floor(x + off);
+      ctx.fillStyle = th.ground; ctx.fillRect(x, GROUND + 3, 1, H - GROUND);
+      ctx.fillStyle = th.grass; ctx.fillRect(x, GROUND, 1, 4 + (hash(wx) > .7 ? 1 : 0));
+      if(hash(wx * 7) > .93){ ctx.fillStyle = '#00000022'; ctx.fillRect(x, GROUND + 10 + (wx % 13), 2, 2) }
+      if(hash(wx * 3) > .96){ ctx.fillStyle = ['#f7a1c4', '#fff3b0', '#ffffff'][wx % 3]; ctx.fillRect(x, GROUND - 2, 2, 2); ctx.fillStyle = th.hill3; ctx.fillRect(x, GROUND, 1, 1) }
+    }
+    ctx.fillStyle = INK; ctx.fillRect(0, GROUND - 1, W, 1);
+    gaps.forEach(([a, b]) => { ctx.fillStyle = '#7ec4e6'; ctx.fillRect(a, GROUND + 8, b - a, H - GROUND); ctx.fillStyle = '#b8e4f5'; for(let x = a; x < b; x += 6) ctx.fillRect(x + ((off / 3 | 0) % 6), GROUND + 9, 3, 1) });
+  }
+  function scene(ctx, th, t, off, opts = {}){
+    const night = !!opts.night;
+    sky(ctx, th, night);
+    if(night){
+      for(let i = 0; i < 40; i++){ const x = hash(i) * W | 0, y = hash(i + 50) * 90 | 0; ctx.fillStyle = (Math.sin(t * 2 + i) > .3) ? '#fff7c2' : '#b9a3e3'; ctx.fillRect(x, y, 1, 1) }
+      ctx.fillStyle = '#fff7c2'; ctx.fillRect(250, 20, 16, 16); ctx.fillStyle = '#5a4a80'; ctx.fillRect(256, 18, 12, 14);
+    } else {
+      ctx.fillStyle = '#fff3c9'; ctx.fillRect(244, 26, 18, 18); ctx.fillStyle = '#ffe08a'; ctx.fillRect(246, 28, 14, 14);
+      for(let i = 0; i < 5; i++){ const cx = ((i * 83 - off * .15 - t * 4) % (W + 60) + W + 60) % (W + 60) - 40; cloud(ctx, cx | 0, 18 + (i * 17) % 40, 2) }
+    }
+    hills(ctx, night ? '#463a6a' : th.hill1, 112, 10, .018, off * .2, 10);
+    hills(ctx, night ? '#3a305a' : th.hill2, 128, 9, .03, off * .45, 50);
+    // Häuser und Bäume auf der mittleren Ebene
+    const o3 = off * .7;
+    for(let i = Math.floor(o3 / 46) - 1; i < Math.floor(o3 / 46) + 9; i++){
+      const x = Math.round(i * 46 - o3), r = hash(i + 3);
+      if(r > .8) house(ctx, x, 122); else if(r > .3) tree(ctx, x, 124 + (r * 6 | 0), night ? { hill3: '#2f2850', hill2: '#3e3566' } : th);
+    }
+    hills(ctx, night ? '#2f2850' : th.hill3, 146, 4, .05, off * .7, 90);
+    ground(ctx, night ? { ground: '#3a2e45', grass: '#5a5285', hill3: '#2f2850' } : th, off, opts.gaps || []);
+    if(night) for(let i = 0; i < 8; i++){ const x = (hash(i + 9) * W + Math.sin(t + i) * 10) | 0, y = 90 + (hash(i + 20) * 50 + Math.cos(t * 1.3 + i) * 6) | 0; ctx.fillStyle = Math.sin(t * 3 + i) > 0 ? '#fff7a0' : '#d8e07a'; ctx.fillRect(x, y, 2, 2) }
+  }
+  function platform(ctx, x, y, w, col, dark, crumble = 0){
+    if(crumble > 0) y += crumble * crumble * 60;
+    ctx.fillStyle = INK; ctx.fillRect(x - 1, y - 1, w + 2, 12);
+    ctx.fillStyle = '#8a5a3c'; ctx.fillRect(x, y + 4, w, 6);
+    ctx.fillStyle = '#b07a52'; for(let i = 0; i < w; i += 8) ctx.fillRect(x + i + 1, y + 5, 5, 1);
+    ctx.fillStyle = col; ctx.fillRect(x, y, w, 4);
+    ctx.fillStyle = dark; ctx.fillRect(x, y + 3, w, 1);
+    ctx.fillStyle = INK; ctx.fillRect(x + w / 2 - 1 | 0, y - 12, 1, 12);
+    ctx.fillStyle = col; ctx.fillRect(x + w / 2 | 0, y - 12, 7, 5);
+    ctx.fillStyle = INK; ctx.fillRect(x + w / 2 | 0, y - 13, 8, 1); ctx.fillRect(x + w / 2 + 7 | 0, y - 12, 1, 5); ctx.fillRect(x + w / 2 | 0, y - 7, 8, 1);
+  }
+  function coin(ctx, x, y, t){
+    const w = Math.max(1, Math.round(Math.abs(Math.cos(t * 6)) * 6));
+    ctx.fillStyle = INK; ctx.fillRect(x - w / 2 - 1 | 0, y - 4, w + 2, 9);
+    ctx.fillStyle = '#f2c94c'; ctx.fillRect(x - w / 2 | 0, y - 3, w, 7);
+    ctx.fillStyle = '#fff3b0'; if(w > 2) ctx.fillRect(x - w / 2 + 1 | 0, y - 2, 1, 3);
+  }
+  return { W, H, GROUND, COLORS, HATS, CREATURES, THEMES, INK, draw, pip, creature, boss, chest, scene, platform, coin, hash };
+})();

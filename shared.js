@@ -19,17 +19,59 @@ function today(off = 0){ const d = new Date(); d.setDate(d.getDate() + off); ret
 function toast(t){ const e = $('#toast'); e.textContent = t; e.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => e.hidden = true, 2600) }
 function shuffle(a){ for(let i = a.length - 1; i > 0; i--){ const j = Math.random() * (i + 1) | 0; [a[i], a[j]] = [a[j], a[i]] } return a }
 
-const hasTTS = 'speechSynthesis' in window;
-function speak(t){
-  if(!hasTTS) return;
+// Aussprache: zuerst aufgenommene Audiodateien (audio/index.json), sonst Stimme des Geräts
+const hasSynth = 'speechSynthesis' in window;
+const hasTTS = true;
+let AUDIO = null, curAudio = null;
+fetch('audio/index.json', { cache:'no-cache' }).then(r => r.ok ? r.json() : null).then(j => { AUDIO = j }).catch(() => {});
+const audioKey = t => String(t || '').replace(/[’`´]/g, "'").replace(/\s+/g, ' ').trim();
+function bestVoice(){
+  const vs = speechSynthesis.getVoices().filter(v => /^fr/i.test(v.lang));
+  const score = v => (/natural|online|neural|premium|enhanced/i.test(v.name) ? 4 : 0) + (/google|amélie|amelie|thomas|audrey|denise|henri|marie/i.test(v.name) ? 2 : 0) + (/fr-fr/i.test(v.lang) ? 1 : 0);
+  return vs.sort((a, b) => score(b) - score(a))[0];
+}
+function synth(t){
+  if(!hasSynth) return;
   try{
     speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance(t); u.lang = 'fr-FR'; u.rate = .85;
-    const v = speechSynthesis.getVoices().find(v => /^fr/i.test(v.lang)); if(v) u.voice = v;
+    const v = bestVoice(); if(v) u.voice = v;
     speechSynthesis.speak(u);
   }catch{}
 }
-if(hasTTS) try{ speechSynthesis.getVoices(); speechSynthesis.onvoiceschanged = () => {} }catch{}
+function speak(t){
+  const f = AUDIO && AUDIO[audioKey(t)];
+  if(f){
+    try{
+      if(curAudio) curAudio.pause();
+      curAudio = new Audio('audio/' + f);
+      curAudio.play().catch(() => synth(t));
+      return;
+    }catch{}
+  }
+  synth(t);
+}
+if(hasSynth) try{ speechSynthesis.getVoices(); speechSynthesis.onvoiceschanged = () => {} }catch{}
+
+/* ---------- Leitner-Karteikasten ---------- */
+const NEXT = {1:1, 2:1, 3:3, 4:7, 5:14};
+const ACC = ['é','è','ê','à','â','ç','ù','û','î','ï','ô','ë','œ',"'"];
+
+/* ---------- Prüfen ---------- */
+const norm = s => s.toLowerCase().replace(/[’`´]/g, "'").replace(/\.\.\./g, '…').replace(/\s*…\s*/g, ' … ').replace(/\s+([!?])/g, '$1').replace(/\s+/g, ' ').replace(/[.!?]+$/, '').trim();
+// Auch ohne Klammerteil und ohne Klammern gültig: «da (ist)» → «da», «da ist»
+const variants = t => [...new Set([t, t.replace(/\s*\([^)]*\)\s*/g, ' ').trim(), t.replace(/[()]/g, '')])].filter(Boolean);
+const deacc = s => s.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/œ/g, 'oe');
+const noArt = s => s.replace(/^(le |la |les |l'|un |une |des |der |die |das |ein |eine )/, '').trim();
+function check(input, target){
+  const a = norm(input); if(!a) return { r:'wrong' };
+  const alts = splitAlts(target).flatMap(variants);
+  for(const t of alts) if(a === norm(t)) return { r:'ok', t };
+  for(const t of alts) if(deacc(a) === deacc(norm(t))) return { r:'accent', t };
+  for(const t of alts){ const n = norm(t); if(noArt(n) !== n && deacc(a) === deacc(noArt(n))) return { r:'article', t } }
+  return { r:'wrong', t: alts[0] };
+}
+function accentDiff(input, t){ const a = [...norm(input)], b = [...norm(t)]; return [...new Set(b.filter((c, i) => c !== a[i] && /[^\x00-\x7f]/.test(c)))].join(' ') }
 
 function makeClient(){
   const C = window.VOCI_CONFIG || {};

@@ -185,3 +185,48 @@ insert into public.units(id, title, ord, words) values
  {"fr":"cinq","de":"fünf"},{"fr":"six","de":"sechs"},{"fr":"sept","de":"sieben"},{"fr":"huit","de":"acht"},
  {"fr":"neuf","de":"neun"},{"fr":"dix","de":"zehn"},{"fr":"onze","de":"elf"},{"fr":"douze","de":"zwölf"}]'::jsonb)
 on conflict (id) do nothing;
+
+-- ---------- Voci-Abenteuer: Spielstand und Teamziel ----------
+alter table public.kid_state add column if not exists game jsonb not null default '{}'::jsonb;
+
+create or replace function public.kid_login(p_name text, p_pin text) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare k uuid; r jsonb;
+begin
+  k := public._kid(p_name, p_pin);
+  if k is null then raise exception 'PIN falsch' using errcode = '28000'; end if;
+  insert into public.kid_state(kid_id) values (k) on conflict do nothing;
+  select jsonb_build_object('name', kd.name, 'cards', s.cards, 'stars', s.stars,
+                            'streak', s.streak, 'last_day', s.last_day, 'game', s.game)
+    into r from public.kid_state s join public.kids kd on kd.id = s.kid_id where s.kid_id = k;
+  return r;
+end $$;
+
+create or replace function public.kid_save_game(p_name text, p_pin text, p_game jsonb) returns void
+language plpgsql security definer set search_path = public as $$
+declare k uuid;
+begin
+  k := public._kid(p_name, p_pin);
+  if k is null then raise exception 'PIN falsch' using errcode = '28000'; end if;
+  if pg_column_size(p_game) > 200000 then raise exception 'Spielstand zu gross'; end if;
+  update public.kid_state set game = coalesce(p_game, '{}'::jsonb), updated_at = now() where kid_id = k;
+end $$;
+
+create or replace function public.team_week(p_name text, p_pin text) returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+declare k uuid; since timestamptz; tot int; n int;
+begin
+  k := public._kid(p_name, p_pin);
+  if k is null then raise exception 'PIN falsch' using errcode = '28000'; end if;
+  since := (date_trunc('week', now() at time zone 'Europe/Zurich')) at time zone 'Europe/Zurich';
+  select coalesce(sum(correct), 0) into tot from public.sessions where ended_at >= since;
+  select count(*) into n from public.kids;
+  return jsonb_build_object('correct', tot, 'goal', greatest(1, n) * 150, 'kids', n,
+                            'week', to_char(now() at time zone 'Europe/Zurich', 'IYYY-IW'));
+end $$;
+
+revoke all on function public.kid_save_game(text, text, jsonb) from public;
+revoke all on function public.team_week(text, text) from public;
+grant execute on function public.kid_save_game(text, text, jsonb) to anon, authenticated;
+grant execute on function public.team_week(text, text) to anon, authenticated;
+grant execute on function public.kid_login(text, text) to anon, authenticated;

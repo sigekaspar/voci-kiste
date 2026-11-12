@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Voci-Abenteuer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;600;700&family=Atkinson+Hyperlegible:wght@400;700&display=swap">
+<link rel="stylesheet" href="spiel.css">
+</head>
+<body>
+<div id="app">
+  <header class="hud" id="hud" hidden>
+    <button class="hud-me" id="hud-me" aria-label="Zur Karte"><canvas id="hud-ava" width="16" height="20"></canvas><span><b id="hud-name"></b><small>Level <span id="hud-lvl">1</span></small><i class="xp"><i id="hud-xp"></i></i></span></button>
+    <span class="hud-coins" title="Münzen"><i class="coin"></i><b id="hud-coins">0</b></span>
+    <button class="hud-btn" id="btn-shop">Shop</button>
+    <button class="hud-btn" id="btn-album">Album</button>
+    <button class="hud-btn" id="btn-badges">Orden</button>
+    <button class="hud-btn icon" id="btn-mute" aria-label="Ton aus"></button>
+  </header>
+  <main id="screen"><p class="loading">Lädt …</p></main>
+</div>
+<div class="toast" id="toast" hidden></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3/dist/umd/supabase.js"></script>
+<script src="config.js"></script>
+<script src="shared.js"></script>
+<script src="spiel-art.js"></script>
+<script src="spiel.js"></script>
+</body>
+</html>

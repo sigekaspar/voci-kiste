@@ -1,6 +1,4 @@
 // Voci-Kiste · Kinderseite
-const NEXT = {1:1, 2:1, 3:3, 4:7, 5:14};
-const ACC = ['é','è','ê','à','â','ç','ù','û','î','ï','ô','ë','œ',"'"];
 const IDLE_CAP = 90; // Sekunden: längere Pausen zählen nicht als Übungszeit
 
 const { sb, error: setupErr } = makeClient();
@@ -9,22 +7,6 @@ let units = [], sel = new Set(), dir = 'de-fr', how = 'write', view = 'home', se
 let prog = { cards:{}, stars:0, streak:0, lastDay:'' };
 let pin = '', pinFor = null, pinErr = '';
 let gUnit = ls.get('vk-gunit', null);
-
-/* ---------- Prüfen ---------- */
-const norm = s => s.toLowerCase().replace(/[’`´]/g, "'").replace(/\.\.\./g, '…').replace(/\s*…\s*/g, ' … ').replace(/\s+([!?])/g, '$1').replace(/\s+/g, ' ').replace(/[.!?]+$/, '').trim();
-// Auch ohne Klammerteil und ohne Klammern gültig: «da (ist)» → «da», «da ist»
-const variants = t => [...new Set([t, t.replace(/\s*\([^)]*\)\s*/g, ' ').trim(), t.replace(/[()]/g, '')])].filter(Boolean);
-const deacc = s => s.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/œ/g, 'oe');
-const noArt = s => s.replace(/^(le |la |les |l'|un |une |des |der |die |das |ein |eine )/, '').trim();
-function check(input, target){
-  const a = norm(input); if(!a) return { r:'wrong' };
-  const alts = splitAlts(target).flatMap(variants);
-  for(const t of alts) if(a === norm(t)) return { r:'ok', t };
-  for(const t of alts) if(deacc(a) === deacc(norm(t))) return { r:'accent', t };
-  for(const t of alts){ const n = norm(t); if(noArt(n) !== n && deacc(a) === deacc(noArt(n))) return { r:'article', t } }
-  return { r:'wrong', t: alts[0] };
-}
-function accentDiff(input, t){ const a = [...norm(input)], b = [...norm(t)]; return [...new Set(b.filter((c, i) => c !== a[i] && /[^\x00-\x7f]/.test(c)))].join(' ') }
 
 /* ---------- Daten ---------- */
 function allWords(ids){ const out = []; for(const u of units){ if(ids && !ids.has(u.id)) continue; (u.words || []).forEach(w => { if(w.fr && w.de) out.push({ u:u.id, w, key:u.id + '|' + w.fr }) }) } return out }
@@ -107,7 +89,7 @@ async function login(name, p, silent){
 }
 $('#logout').onclick = async () => { await flush(); ls.del('vk-kid'); kid = null; sess = null; renderWho() };
 
-function showChrome(on){ $('#stats').hidden = !on; $('#tabs').hidden = !on; if(on) $('#logout').textContent = kid.name + ' · Abmelden' }
+function showChrome(on){ $('#stats').hidden = !on; $('#tabs').hidden = !on; $('#playlink').hidden = !on; if(on) $('#logout').textContent = kid.name + ' · Abmelden' }
 
 /* ---------- Ansichten ---------- */
 const TABS = { home:'#tab-home', gram:'#tab-gram', words:'#tab-words' };
