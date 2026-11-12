@@ -21,8 +21,11 @@ const ART = (() => {
     ['..kppkkppk..', '.kppk..kppk.', 'kbbk....kbbk', 'kkk......kkk']];
   const COLORS = {
     berry: ['#e86a6a', '#b54646', 'Himbeere'], mint: ['#5fc4a0', '#3a9479', 'Minze'], sky: ['#7ec4e6', '#4a8fb5', 'Himmel'],
-    lav: ['#b9a3e3', '#8a72bf', 'Lavendel'], honey: ['#f2b84b', '#c98a24', 'Honig'], cocoa: ['#a0704e', '#6e4a31', 'Kakao'], night: ['#4b5a8a', '#2f3a63', 'Nacht']
+    lav: ['#b9a3e3', '#8a72bf', 'Lavendel'], honey: ['#f2b84b', '#c98a24', 'Honig'], cocoa: ['#a0704e', '#6e4a31', 'Kakao'], night: ['#4b5a8a', '#2f3a63', 'Nacht'],
+    rose: ['#f7a1c4', '#d4709a', 'Rosa'], sun: ['#ffd84a', '#d9a91e', 'Sonne'], forest: ['#3f8f5a', '#2a6640', 'Tanne'], ocean: ['#2f7fc1', '#1f5a8f', 'Ozean'],
+    snow: ['#f4f6fb', '#b8c2d8', 'Schnee'], coal: ['#3a3a48', '#22222c', 'Kohle'], gold: ['#f2c94c', '#b8902a', 'Gold'], rainbow: ['#e86a6a', '#7b5fc4', 'Regenbogen']
   };
+  const RAINBOW = ['#e86a6a', '#f2b84b', '#7fb069', '#7ec4e6'];
   const HATS = {
     beret: { name: 'Béret', rows: ['....kkk.....', '..kkRRRkk...', '.kRRRRRRRk..', '.kkkkkkkkkk.'], pal: { R: '#3e4a7a' }, dy: -3 },
     crown: { name: 'Krone', rows: ['..k..k..k...', '.kYkkYkkYk..', '.kYYYYYYYk..', '.kkkkkkkkk..'], pal: { Y: '#f2c94c' }, dy: -3 },
@@ -30,8 +33,38 @@ const ART = (() => {
     flower: { name: 'Blume', rows: ['......kk....', '.....kPPk...', '......kk....'], pal: { P: '#f7a1c4' }, dy: -2 },
     helmet: { name: 'Ritterhelm', rows: ['.....k......', '...kkGkk....', '..kGGGGGk...', '.kGGGGGGGk..', '.kGkkkkkGk..'], pal: { G: '#b8c0cc' }, dy: -4 },
     wizard: { name: 'Zauberhut', rows: ['......kk....', '.....kVVk...', '....kVYVk...', '...kVVVVVk..', '..kVVVVVVVk.', '.kkkkkkkkkkk'], pal: { V: '#7b5fc4', Y: '#f2c94c' }, dy: -5 },
-    chef: { name: 'Kochmütze', rows: ['..kkk.kkk...', '.kWWWkWWWk..', '.kWWWWWWWk..', '..kWWWWWk...', '..kkkkkkk...'], pal: { W: '#ffffff' }, dy: -4 }
+    chef: { name: 'Kochmütze', rows: ['..kkk.kkk...', '.kWWWkWWWk..', '.kWWWWWWWk..', '..kWWWWWk...', '..kkkkkkk...'], pal: { W: '#ffffff' }, dy: -4 },
+    party: { name: 'Partyhut', rows: ['.....kk.....', '....kYYk....', '...kRYRk....', '..kYRYRYk...', '.kkkkkkkkk..'], pal: { R: '#e86a6a', Y: '#f2c94c' }, dy: -5 },
+    tophat: { name: 'Zylinder', rows: ['..kkkkkkk...', '..kBBBBBk...', '..kBBBBBk...', '..kRRRRRk...', 'kkkkkkkkkkk.'], pal: { B: '#2e2a3a', R: '#e86a6a' }, dy: -5 },
+    pirate: { name: 'Piratenhut', rows: ['...kkkkkk...', '..kBBBBBBk..', '.kBBBWWBBBk.', 'kkkkkkkkkkkk'], pal: { B: '#2e2a3a', W: '#ffffff' }, dy: -4 },
+    viking: { name: 'Wikingerhelm', rows: ['k..........k', 'kW.kkkkkk.Wk', '.kkGGGGGGkk.', '.kGGGGGGGGk.', '.kkkkkkkkkk.'], pal: { W: '#fff3dd', G: '#b8c0cc' }, dy: -4 },
+    bunny: { name: 'Hasenohren', rows: ['..kk....kk..', '.kWk....kWk.', '.kPk....kPk.', '.kWk....kWk.', '..kk....kk..'], pal: { W: '#ffffff', P: '#f7a1c4' }, dy: -5 },
+    cat: { name: 'Katzenohren', rows: ['.k.......k..', 'kOk.....kOk.', 'kPOk...kOPk.', 'kkkk...kkkk.'], pal: { O: '#3a3a48', P: '#f7a1c4' }, dy: -3 },
+    propeller: { name: 'Propellermütze', rows: ['..RRk.kBB...', '....kYk.....', '...kRBRk....', '..kRBRBRk...', '.kkkkkkkkk..'], pal: { R: '#e86a6a', B: '#7ec4e6', Y: '#f2c94c' }, dy: -5 },
+    headphones: { name: 'Kopfhörer', rows: ['...kkkkkk...', '..k......k..', '.kk......kk.', 'kRRk....kRRk', 'kRRk....kRRk'], pal: { R: '#e86a6a' }, dy: -1 },
+    halo: { name: 'Heiligenschein', rows: ['..kkkkkkk...', '.kYYYYYYYk..', '..kkkkkkk...'], pal: { Y: '#ffe27a' }, dy: -6 },
+    flowercrown: { name: 'Blumenkranz', rows: ['.P.Y.P.Y.P..', 'kGkGkGkGkGk.'], pal: { P: '#f7a1c4', Y: '#f2c94c', G: '#7fb069' }, dy: -1 },
+    straw: { name: 'Strohhut', rows: ['...kkkkk....', '..kYYYYYk...', '..kRRRRRk...', 'kkYYYYYYYkk.', '.kkkkkkkkk..'], pal: { Y: '#f2d27a', R: '#e86a6a' }, dy: -4 }
   };
+  const FACES = {
+    sunglasses: { name: 'Sonnenbrille', rows: ['..kkkkkkkk..', '..kBBkkBBk..'], pal: { B: '#2e2a3a' }, dy: 2 },
+    glasses: { name: 'Brille', rows: ['...kkkkkk...', '...kekkek...'], pal: { e: '#2a2230' }, dy: 2 },
+    hearts: { name: 'Herzbrille', rows: ['...RRkRR....', '...RRkRR....'], pal: { R: '#e86a6a' }, dy: 2 },
+    mustache: { name: 'Schnauz', rows: ['...kk..kk...', '..kkkkkkkk..'], pal: {}, dy: 4 }
+  };
+  const TRAILS = {
+    sparkle: { name: 'Glitzer', cols: ['#fff3b0', '#ffffff'] }, hearts: { name: 'Herzen', cols: ['#f7a1c4', '#e86a6a'], heart: true },
+    rainbow: { name: 'Regenbogen', cols: ['#e86a6a', '#f2b84b', '#ffe27a', '#7fb069', '#7ec4e6', '#b9a3e3'] }, leaves: { name: 'Blätter', cols: ['#7fb069', '#c08a3e', '#e0a35c'] },
+    bubbles: { name: 'Seifenblasen', cols: ['#b8e4f5', '#ffffff'], ring: true }, fire: { name: 'Feuer', cols: ['#f2b84b', '#e86a6a', '#ffe27a'] },
+    stars: { name: 'Sterne', cols: ['#ffe27a', '#f2c94c'], star: true }, snow: { name: 'Schneeflocken', cols: ['#ffffff', '#dfe7f5'] }
+  };
+  function trailDot(ctx, tr, x, y, col){
+    ctx.fillStyle = col; x |= 0; y |= 0;
+    if(tr.heart){ ctx.fillRect(x, y, 1, 1); ctx.fillRect(x + 2, y, 1, 1); ctx.fillRect(x, y + 1, 3, 1); ctx.fillRect(x + 1, y + 2, 1, 1) }
+    else if(tr.ring){ ctx.fillRect(x + 1, y, 1, 1); ctx.fillRect(x, y + 1, 1, 1); ctx.fillRect(x + 2, y + 1, 1, 1); ctx.fillRect(x + 1, y + 2, 1, 1) }
+    else if(tr.star){ ctx.fillRect(x + 1, y, 1, 3); ctx.fillRect(x, y + 1, 3, 1) }
+    else ctx.fillRect(x, y, 2, 2);
+  }
   const BASEPAL = { k: INK, s: '#f7c9a3', e: '#2a2230', c: '#f29b9b', m: '#c0505a', w: '#ffffff', p: '#5a4a6b', b: '#6b4a3a' };
 
   function draw(ctx, rows, pal, x, y, flip = false, scale = 1){
@@ -47,7 +80,10 @@ const ART = (() => {
     const col = COLORS[look.color] || COLORS.berry;
     const pal = { ...BASEPAL, h: col[0], H: col[1] };
     draw(ctx, PIP_HEAD, pal, x, y, false, scale);
-    draw(ctx, PIP_BODY, pal, x, y + 7 * scale, false, scale);
+    if(look.color === 'rainbow') PIP_BODY.forEach((row, i) => draw(ctx, [row], { ...pal, h: RAINBOW[i], H: RAINBOW[i] }, x, y + (7 + i) * scale, false, scale));
+    else draw(ctx, PIP_BODY, pal, x, y + 7 * scale, false, scale);
+    const face = FACES[look.face];
+    if(face) draw(ctx, face.rows, { k: INK, ...face.pal }, x, y + face.dy * scale, false, scale);
     draw(ctx, LEGS[frame % 3], pal, x, y + 11 * scale, false, scale);
     const hat = HATS[look.hat];
     if(hat) draw(ctx, hat.rows, { k: INK, ...hat.pal }, x, y + hat.dy * scale, false, scale);
@@ -58,6 +94,10 @@ const ART = (() => {
     bird: ['....kkk.....', '...kBBBk....', '..kBBBBBk...', '..kBeBBBkkk.', '.kOkBBBBBBk.', '..kkBBBBBDk.', '...kBBBBDDk.', '...kBWWBDk..', '....kBBBk...', '.....kOk....', '.....kOk....', '....kk.kk...'],
     bunny: ['..kk....kk..', '.kBk....kBk.', '.kPk....kPk.', '.kBk....kBk.', '..kkBBBBkk..', '.kBBBBBBBBk.', '.kBeBBBBeBk.', '.kBBcmmcBBk.', '..kBBBBBBk..', '.kBBWWWWBBk.', '.kBBBBBBBBk.', '..kkk..kkk..'],
     snail: ['............', '.....kkkk...', '....kSSSSk..', '...kSkkkSSk.', '...kSkSSkSk.', 'k..kSkkSkSk.', 'kek.kSSSkSk.', 'kBk..kkkSSk.', 'kBBkkkkkkkk.', 'kBBBBBBBBBk.', '.kkkkkkkkkk.', '............'],
+    frog: ['.kkk....kkk.', 'kWWek..kWWek', 'kWWWkkkkWWWk', '.kBBBBBBBBk.', 'kBBBBBBBBBBk', 'kBBmmmmmmBBk', 'kBBBBBBBBBBk', '.kBDDDDDDBk.', 'kBBkBBBBkBBk', 'kBk.kBBk.kBk', 'kkk.kkkk.kkk', '............'],
+    owl: ['.k........k.', 'kBk......kBk', 'kBBkkkkkkBBk', 'kBWWBBBBWWBk', 'kWWeWBBWeWWk', 'kBWWBOOBWWBk', 'kBBBBOOBBBBk', 'kBDDDDDDDDBk', 'kBDDDDDDDDBk', '.kBDDDDDDBk.', '..kOOkkOOk..', '..kkk..kkk..'],
+    cat: ['.k.......k..', 'kBk.....kBk.', 'kPBkkkkkBPk.', 'kBBBBBBBBBk.', 'kBeBBBBBeBk.', 'kBBBcmcBBBk.', '.kBBBBBBBk..', '..kBBBBBk..k', '.kBBBBBBBkBk', '.kBWBBBWBkk.', '.kBkBkBkBk..', '.kk.kk.kk...'],
+    dragon: ['...k...k....', '..kOk.kOk...', '..kBBkBBk...', '.kBBBBBBBk..', 'kBBeBBBeBBk.', 'kBBBBBBBBBkk', 'kBBBmmBBBkWk', '.kBBBBBBkWWk', 'kBDDDDDBBkWk', 'kBDDDDDBBBk.', '.kBBkkBBBk..', '.kkk.kkkk...'],
     fox: ['.k........k.', 'kOk......kOk', 'kOOk....kOOk', 'kOOOkkkkOOOk', '.kOOOOOOOOk.', '.kOeOOOOeOk.', '.kOOWkkWOOk.', '..kWWWWWWk..', '...kOOOOk...', '..kOOOOOOk..', '..kOkOOkOk..', '..kk.kk.kk..']
   };
   const CREATURES = [
@@ -65,12 +105,17 @@ const ART = (() => {
     ['piou', 'Piou', 'bird', '#7ec4e6', '#4a8fb5', 0], ['cerise', 'Cerise', 'bird', '#e86a6a', '#b54646', 0], ['lilas', 'Lilas', 'bird', '#b9a3e3', '#8a72bf', 1],
     ['noisette', 'Noisette', 'bunny', '#c9a27e', '#8f6c4e', 0], ['flocon', 'Flocon', 'bunny', '#f4f1ff', '#c3bde0', 1], ['caramel', 'Caramel', 'bunny', '#e0a35c', '#a8743a', 0],
     ['escargot', 'Escargot', 'snail', '#a7d18a', '#6e9b55', 0], ['galette', 'Galette', 'snail', '#f2c94c', '#b8902a', 1], ['orage', 'Orage', 'snail', '#6c7bb5', '#465390', 1],
-    ['renardo', 'Renardo', 'fox', '#ef8a4a', '#b85e2a', 1], ['neige', 'Neige', 'fox', '#eef2fb', '#b8c2d8', 2], ['etoile', 'Étoile', 'blob', '#ffe27a', '#e0a92a', 2], ['minuit', 'Minuit', 'fox', '#4b5a8a', '#2f3a63', 2]
+    ['renardo', 'Renardo', 'fox', '#ef8a4a', '#b85e2a', 1], ['neige', 'Neige', 'fox', '#eef2fb', '#b8c2d8', 2], ['etoile', 'Étoile', 'blob', '#ffe27a', '#e0a92a', 2], ['minuit', 'Minuit', 'fox', '#4b5a8a', '#2f3a63', 2],
+    ['grenouille', 'Grenouille', 'frog', '#7fd06b', '#4f9e45', 0], ['rainette', 'Rainette', 'frog', '#6cc3e8', '#3f8fb5', 1], ['hibou', 'Hibou', 'owl', '#b08560', '#7d5a3c', 0], ['chouette', 'Chouette', 'owl', '#f1ede4', '#c9c0ad', 1],
+    ['minou', 'Minou', 'cat', '#f2a654', '#c47a2c', 0], ['mistigri', 'Mistigri', 'cat', '#4a4458', '#2e2a3a', 1], ['dragonnet', 'Dragonnet', 'dragon', '#8fd46b', '#5a9e45', 2], ['flamme', 'Flamme', 'dragon', '#ef7a5a', '#b84e33', 2]
   ];
-  function creature(ctx, id, x, y, scale = 1){
+  const petStage = n => n >= 6 ? 3 : n >= 3 ? 2 : 1;
+  function creature(ctx, id, x, y, scale = 1, stage = 1, t = 0){
     const c = CREATURES.find(c => c[0] === id); if(!c) return;
-    const pal = { k: INK, B: c[3], D: c[4], W: '#ffffff', e: '#2a2230', c: '#f29b9b', m: '#c0505a', O: c[2] === 'fox' ? c[3] : '#f2a23a', P: '#f7a1c4', S: c[4] };
+    const pal = { k: INK, B: c[3], D: c[4], W: '#ffffff', e: '#2a2230', c: '#f29b9b', m: c[2] === 'frog' ? '#c0505a' : '#c0505a', O: c[2] === 'fox' ? c[3] : '#f2a23a', P: '#f7a1c4', S: c[4] };
     draw(ctx, SHAPES[c[2]], pal, x, y, false, scale);
+    if(stage >= 2){ ctx.fillStyle = '#fff7c2'; [[-2, 2], [12, 4], [-1, 9], [12, 10]].forEach(([dx, dy], i) => { if(Math.sin(t * 6 + i * 1.7) > -.2) ctx.fillRect(x + dx * scale, y + dy * scale, scale, scale) }) }
+    if(stage >= 3) draw(ctx, ['k.k.k', 'kYkYk', 'kYYYk', 'kkkkk'], { k: INK, Y: '#f2c94c' }, x + 4 * scale, y - 4 * scale, false, scale);
   }
   // ---------- Boss-Wolke (20×16) ----------
   const BOSS = [
@@ -182,5 +227,5 @@ const ART = (() => {
     ctx.fillStyle = '#f2c94c'; ctx.fillRect(x - w / 2 | 0, y - 3, w, 7);
     ctx.fillStyle = '#fff3b0'; if(w > 2) ctx.fillRect(x - w / 2 + 1 | 0, y - 2, 1, 3);
   }
-  return { W, H, GROUND, COLORS, HATS, CREATURES, THEMES, INK, draw, pip, creature, boss, chest, scene, platform, coin, hash };
+  return { W, H, GROUND, COLORS, HATS, FACES, TRAILS, trailDot, petStage, CREATURES, THEMES, INK, draw, pip, creature, boss, chest, scene, platform, coin, hash };
 })();

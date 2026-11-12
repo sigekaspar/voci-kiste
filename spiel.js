@@ -17,10 +17,37 @@ const CFG = {
   rarity: [70, 25, 5], rarityBoss: [45, 40, 15],
   idleCap: 60
 };
-const SHOP = [
-  ...Object.entries(ART.COLORS).map(([k, c], i) => ({ id: 'color_' + k, kind: 'color', key: k, name: c[2], price: i === 0 ? 0 : [0, 40, 40, 60, 60, 80, 120][i] })),
-  ...[['flower', 50], ['cap', 70], ['beret', 100], ['chef', 140], ['helmet', 220], ['crown', 300], ['wizard', 380]].map(([k, p]) => ({ id: 'hat_' + k, kind: 'hat', key: k, name: ART.HATS[k].name, price: p }))
+// Drei Ebenen pro Welt: jede schwerer, aber mit mehr Belohnung
+const EBENEN = [
+  { name: 'Wiese', tag: 'Normal', speed: 1, q: 8, hearts: 0, bossHP: 6, bossTime: 25, reward: 1, rar: [70, 25, 5] },
+  { name: 'Berg', tag: 'Schwer', speed: 1.3, q: 10, hearts: 0, bossHP: 8, bossTime: 20, reward: 1.6, rar: [55, 35, 10] },
+  { name: 'Sternenhimmel', tag: 'Meister', speed: 1.6, q: 12, hearts: -1, bossHP: 10, bossTime: 15, reward: 2.5, rar: [35, 45, 20] }
 ];
+// Kräfte: je 5 Stufen
+const SKILLS = [
+  ['herz', 'Extra-Herz', 'Mehr Herzen in jedem Level', [120, 260, 450, 700, 1000], l => `${[0, 1, 1, 2, 2, 3][l]} Herz(en) mehr`],
+  ['zeit', 'Zeitlupe', 'Mehr Bedenkzeit', [80, 180, 320, 500, 750], l => `${l * 7}% langsamer`],
+  ['magnet', 'Münzmagnet', 'Mehr Münzen pro Wort', [100, 220, 380, 600, 900], l => `+${l * 15}% Münzen`],
+  ['schild', 'Kombo-Schild', 'Ein Fehler zerstört die Kombo nicht', [150, 300, 500, 750, 1100], l => `${[0, 1, 1, 2, 2, 3][l]} Schild(e) pro Level`],
+  ['joker', 'Joker', 'Streicht eine falsche Antwort weg, beim Boss zeigt er die ersten Buchstaben', [90, 200, 350, 550, 800], l => `${[0, 1, 1, 2, 2, 3][l]} Joker pro Level`],
+  ['stern', 'Sternwurf', 'Chance auf Doppel-Treffer beim Boss', [120, 250, 420, 650, 950], l => `${l * 12}% Chance`],
+  ['weise', 'Weisheit', 'Mehr XP für jedes Wort', [80, 170, 300, 480, 700], l => `+${l * 12}% XP`],
+  ['klee', 'Glücksklee', 'Seltenere Wesen in Truhen', [150, 320, 520, 780, 1100], l => `+${l * 6}% Glück`]
+];
+const RANKS = [[1, 'Petit pois'], [3, 'Escargot'], [5, 'Explorateur'], [8, 'Chevalier'], [12, 'Champion'], [16, 'Héros'], [20, 'Légende'], [25, 'Majesté des mots']];
+const rankOf = lvl => RANKS.filter(r => lvl >= r[0]).pop()[1];
+const COLOR_P = { berry: 0, mint: 40, sky: 40, lav: 60, honey: 60, cocoa: 80, night: 120, rose: 80, sun: 100, forest: 120, ocean: 140, snow: 160, coal: 180, gold: 400, rainbow: 600 };
+const COLOR_L = { gold: 10, rainbow: 15 };
+const HAT_P = [['flower', 50, 1], ['cap', 70, 1], ['flowercrown', 90, 2], ['beret', 100, 2], ['bunny', 120, 3], ['cat', 120, 3], ['chef', 140, 4], ['straw', 150, 4], ['party', 170, 5], ['headphones', 200, 6], ['pirate', 220, 6], ['helmet', 240, 7], ['propeller', 260, 8], ['viking', 300, 9], ['tophat', 320, 10], ['crown', 400, 12], ['wizard', 450, 14], ['halo', 600, 18]];
+const FACE_P = [['glasses', 80, 2], ['sunglasses', 150, 4], ['hearts', 200, 6], ['mustache', 250, 8]];
+const TRAIL_P = [['leaves', 100, 2], ['bubbles', 140, 3], ['sparkle', 180, 4], ['hearts', 220, 5], ['snow', 260, 7], ['stars', 320, 9], ['fire', 400, 11], ['rainbow', 700, 15]];
+const SHOP = [
+  ...Object.entries(ART.COLORS).map(([k, c]) => ({ id: 'color_' + k, kind: 'color', key: k, name: c[2], price: COLOR_P[k] ?? 100, lvl: COLOR_L[k] || 1 })),
+  ...HAT_P.map(([k, p, l]) => ({ id: 'hat_' + k, kind: 'hat', key: k, name: ART.HATS[k].name, price: p, lvl: l })),
+  ...FACE_P.map(([k, p, l]) => ({ id: 'face_' + k, kind: 'face', key: k, name: ART.FACES[k].name, price: p, lvl: l })),
+  ...TRAIL_P.map(([k, p, l]) => ({ id: 'trail_' + k, kind: 'trail', key: k, name: ART.TRAILS[k].name, price: p, lvl: l }))
+];
+const CHESTS = [['wood', 'Holztruhe', 150, 'Ein zufälliges Wesen', 'normal'], ['gold', 'Goldtruhe', 450, 'Bessere Chancen auf seltene Wesen', 'boss']];
 const BADGES = [
   ['first', 'Erster Schritt', 'Ein Level geschafft', G => Object.keys(G.stars).length >= 1],
   ['perfect', 'Perfekt!', 'Ein Level mit 3 Sternen', G => Object.values(G.stars).some(s => s >= 3)],
@@ -31,8 +58,19 @@ const BADGES = [
   ['w500', 'Wort-Profi', '500 Wörter richtig', G => G.totals.correct >= 500],
   ['daily5', 'Fleissig', '5 Mal das Tagesziel', G => G.daily.count >= 5],
   ['coll8', 'Sammler', '8 verschiedene Wesen', G => Object.keys(G.cards).length >= 8],
-  ['collall', 'Alle gefunden!', 'Alle 16 Wesen', G => Object.keys(G.cards).length >= ART.CREATURES.length],
+  ['coll16', 'Grosser Sammler', '16 verschiedene Wesen', G => Object.keys(G.cards).length >= 16],
+  ['collall', 'Alle gefunden!', 'Alle ' + ART.CREATURES.length + ' Wesen', G => Object.keys(G.cards).length >= ART.CREATURES.length],
+  ['pet3', 'Wesen-Flüsterer', 'Ein Wesen auf Stufe 3', G => Object.values(G.cards).some(n => n >= 6)],
   ['shop3', 'Modeprofi', '3 Sachen im Shop gekauft', G => Object.keys(G.owned).filter(k => k !== 'color_berry').length >= 3],
+  ['shop10', 'Stilikone', '10 Sachen im Shop gekauft', G => Object.keys(G.owned).filter(k => k !== 'color_berry').length >= 10],
+  ['skill1', 'Erste Kraft', 'Eine Kraft gekauft', G => Object.values(G.skills).some(l => l >= 1)],
+  ['skill5', 'Voll aufgeladen', 'Eine Kraft auf Stufe 5', G => Object.values(G.skills).some(l => l >= 5)],
+  ['berg', 'Bergsteiger', 'Die Ebene Berg erreicht', G => Object.keys(G.stars).some(k => k.split(':')[1] === '1')],
+  ['sterne', 'Sternenkind', 'Die Ebene Sternenhimmel erreicht', G => Object.keys(G.stars).some(k => k.split(':')[1] === '2')],
+  ['meister', 'Meister-Bezwinger', 'Einen Boss im Sternenhimmel besiegt', G => Object.keys(G.stars).some(k => /:2:4$/.test(k))],
+  ['lvl10', 'Aufsteiger', 'Spieler-Level 10', G => lvlOf(G.xp).lvl >= 10],
+  ['lvl20', 'Legende', 'Spieler-Level 20', G => lvlOf(G.xp).lvl >= 20],
+  ['rich', 'Schatzsucher', '2000 Münzen verdient', G => (G.totals.earned || 0) >= 2000],
   ['world', 'Welt-Meister', 'Alle Sterne einer Welt', G => worldsFull(G) >= 1]
 ];
 const SLOT = [['var(--berry)', '#e86a6a', '#b54646', '1', '↑'], ['var(--mint)', '#5fc4a0', '#3a9479', '2', '→'], ['var(--honey)', '#f2b84b', '#c98a24', '3', '↓']];
@@ -68,8 +106,11 @@ const sfx = {
 function setMute(m){ muted = m; ls.set('vk-mute', m); $('#btn-mute').innerHTML = m ? '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#3b2d3f" stroke-width="2.4"><path d="M11 5 6 9H3v6h3l5 4z" fill="#3b2d3f"/><path d="M16 9l5 6M21 9l-5 6"/></svg>' : SPK2.replace('<svg ', '<svg width="22" height="22" '); $('#btn-mute').setAttribute('aria-label', m ? 'Ton an' : 'Ton aus') }
 
 /* ---------- Spielstand ---------- */
-function freshGame(){ return { coins: 0, xp: 0, stars: {}, owned: { color_berry: 1 }, look: { color: 'berry', hat: null, pet: null }, cards: {}, badges: {}, daily: { day: '', secs: 0, done: false, count: 0 }, totals: { correct: 0, answers: 0, bestCombo: 0, bosses: 0 }, team: { week: '', claimed: false }, group: null } }
-function mergeGame(g){ const f = freshGame(); g = g || {}; return { ...f, ...g, look: { ...f.look, ...(g.look || {}) }, daily: { ...f.daily, ...(g.daily || {}) }, totals: { ...f.totals, ...(g.totals || {}) }, team: { ...f.team, ...(g.team || {}) }, owned: { ...f.owned, ...(g.owned || {}) }, stars: g.stars || {}, cards: g.cards || {}, badges: g.badges || {} } }
+function freshGame(){ return { coins: 0, xp: 0, stars: {}, skills: {}, ebSel: {}, owned: { color_berry: 1 }, look: { color: 'berry', hat: null, pet: null, face: null, trail: null }, cards: {}, badges: {}, daily: { day: '', secs: 0, done: false, count: 0 }, totals: { correct: 0, answers: 0, bestCombo: 0, bosses: 0 }, team: { week: '', claimed: false }, group: null } }
+function mergeGame(g){ const f = freshGame(); g = g || {}; return { ...f, ...g, look: { ...f.look, ...(g.look || {}) }, daily: { ...f.daily, ...(g.daily || {}) }, totals: { ...f.totals, ...(g.totals || {}) }, team: { ...f.team, ...(g.team || {}) }, owned: { ...f.owned, ...(g.owned || {}) }, stars: g.stars || {}, cards: g.cards || {}, badges: g.badges || {}, skills: g.skills || {}, ebSel: g.ebSel || {} } }
+const skl = id => (G && G.skills[id]) || 0;
+const sKey = (uid, eb, i) => eb ? `${uid}:${eb}:${i}` : `${uid}:${i}`;
+const ebOpen = (uid, eb) => eb === 0 || (G.stars[sKey(uid, eb - 1, 4)] || 0) >= 1;
 function lvlOf(xp){ let l = 1, need = CFG.xpLevel(1); while(xp >= need){ xp -= need; l++; need = CFG.xpLevel(l) } return { lvl: l, cur: xp, need } }
 function worldsFull(g){ return units.filter(u => [0, 1, 2, 3, 4].every(i => (g.stars[u.id + ':' + i] || 0) >= 3)).length }
 const ckey = () => 'vk-game-' + kid.name.toLowerCase();
@@ -144,7 +185,7 @@ function avatarCanvas(cv, look, frame = 0){
 function hud(){
   $('#hud-name').textContent = kid.name;
   const L = lvlOf(G.xp);
-  $('#hud-lvl').textContent = L.lvl;
+  $('#hud-lvl').textContent = L.lvl + ' · ' + rankOf(L.lvl);
   $('#hud-xp').style.width = (L.cur / L.need * 100) + '%';
   $('#hud-coins').textContent = G.coins;
   avatarCanvas($('#hud-ava'), G.look);
@@ -155,10 +196,10 @@ $('#btn-album').onclick = () => { sfx.click(); stopLoop(); renderAlbum() };
 $('#btn-badges').onclick = () => { sfx.click(); stopLoop(); renderBadges() };
 $('#btn-mute').onclick = () => { setMute(!muted); if(!muted) sfx.click() };
 
-function addCoins(n, el){ G.coins += n; $('#hud-coins').textContent = G.coins; if(el) floatText(el, '+' + n) }
+function addCoins(n, el){ G.coins += n; if(n > 0) G.totals.earned = (G.totals.earned || 0) + n; $('#hud-coins').textContent = G.coins; if(el) floatText(el, '+' + n) }
 function addXP(n){
   const before = lvlOf(G.xp).lvl; G.xp += n; const after = lvlOf(G.xp).lvl; hud();
-  if(after > before){ sfx.level(); toast('Level ' + after + '! Super!') }
+  if(after > before){ sfx.level(); const r = rankOf(after); toast('Level ' + after + '! ' + (r !== rankOf(before) ? 'Neuer Rang: ' + r : 'Neue Sachen im Shop?')) }
 }
 function floatText(box, text, x = 22, y = 40, color = '#fff'){
   const s = document.createElement('span'); s.className = 'float'; s.textContent = text; s.style.left = x + '%'; s.style.top = y + '%'; s.style.color = color;
@@ -179,26 +220,34 @@ function renderMap(){
   document.querySelectorAll('[data-g]').forEach(b => b.onclick = () => { sfx.click(); group = b.dataset.g; G.group = group; save(); renderMap() });
   list.forEach((u, wi) => {
     const cv = document.getElementById('ban-' + u.id); if(!cv) return;
-    const c = cv.getContext('2d'); c.save(); c.translate(0, -108); ART.scene(c, ART.THEMES[wi % ART.THEMES.length], 2, wi * 140 + 30);
+    const eb = G.ebSel[u.id] || 0;
+    const c = cv.getContext('2d'); c.save(); c.translate(0, -108); ART.scene(c, ART.THEMES[wi % ART.THEMES.length], 2, wi * 140 + 30, { night: eb === 2 });
     ART.pip(c, 200, ART.GROUND - 15, G.look, 0);
-    if(G.look.pet) ART.creature(c, G.look.pet, 182, ART.GROUND - 12, 1); c.restore();
+    if(G.look.pet) ART.creature(c, G.look.pet, 182, ART.GROUND - 12, 1, ART.petStage(G.cards[G.look.pet] || 1)); c.restore();
     const bc = document.getElementById('bossico-' + u.id); if(bc){ const t = ART.THEMES[wi % ART.THEMES.length]; ART.boss(bc.getContext('2d'), 0, 0, t.boss[0], t.boss[1]) }
+  });
+  document.querySelectorAll('.ebtab').forEach(b => b.onclick = () => {
+    const uid = b.dataset.w, eb = +b.dataset.eb;
+    if(!ebOpen(uid, eb)){ sfx.wrong(); toast('Besiege zuerst den Boss der Ebene ' + EBENEN[eb - 1].name + '!'); return }
+    sfx.click(); G.ebSel[uid] = eb; save(); renderMap();
   });
   document.querySelectorAll('.node[data-u]').forEach(b => b.onclick = () => {
     if(b.classList.contains('locked')){ sfx.wrong(); toast('Zuerst das Level davor schaffen!'); return }
     sfx.click(); ac();
-    const u = units.find(x => x.id === b.dataset.u), i = +b.dataset.i, wi = list.indexOf(u);
-    i === 4 ? startBoss(u, wi) : startRun(u, i, wi);
+    const u = units.find(x => x.id === b.dataset.u), i = +b.dataset.i, wi = list.indexOf(u), eb = G.ebSel[u.id] || 0;
+    i === 4 ? startBoss(u, wi, eb) : startRun(u, i, wi, eb);
   });
 }
 function worldHTML(u, wi){
   const th = ART.THEMES[wi % ART.THEMES.length];
-  const st = i => G.stars[u.id + ':' + i] || 0;
+  const eb = ebOpen(u.id, G.ebSel[u.id] || 0) ? (G.ebSel[u.id] || 0) : 0;
+  const st = i => G.stars[sKey(u.id, eb, i)] || 0;
   const open = i => i === 0 || st(i - 1) >= 1;
-  const total = [0, 1, 2, 3, 4].reduce((a, i) => a + st(i), 0);
+  const total = [0, 1, 2].reduce((a, e) => a + [0, 1, 2, 3, 4].reduce((b, i) => b + (G.stars[sKey(u.id, e, i)] || 0), 0), 0);
   const nextI = [0, 1, 2, 3, 4].find(i => open(i) && !st(i));
-  return `<article class="world">
-    <div class="banner"><canvas id="ban-${esc(u.id)}" width="320" height="70"></canvas><h2>${esc(u.title)}</h2><small>${total} / 15 ★</small></div>
+  return `<article class="world eb${eb}">
+    <div class="banner"><canvas id="ban-${esc(u.id)}" width="320" height="70"></canvas><h2>${esc(u.title)}</h2><small>${total} / 45 ★</small></div>
+    <div class="ebtabs">${EBENEN.map((E, e) => { const o = ebOpen(u.id, e); return `<button class="ebtab" data-w="${esc(u.id)}" data-eb="${e}" aria-pressed="${e === eb}" ${o ? '' : 'data-lock="1"'}>${o ? '' : '<span aria-hidden="true">🔒</span> '}${E.name}<small>${E.tag}</small></button>` }).join('')}</div>
     <div class="path">${[0, 1, 2, 3, 4].map(i => {
       const boss = i === 4, lock = !open(i);
       return `<button class="node ${boss ? 'boss' : ''} ${lock ? 'locked' : ''} ${i === nextI ? 'next' : ''}" data-u="${esc(u.id)}" data-i="${i}" aria-label="${boss ? 'Boss ' + th.bossName : 'Level ' + (i + 1)}${lock ? ', gesperrt' : ''}">
@@ -249,22 +298,31 @@ function activeTick(S){ const now = Date.now(); const d = Math.min(CFG.idleCap, 
   if(!G.daily.done && G.daily.secs >= CFG.dailySecs){ G.daily.done = true; G.daily.count = (G.daily.count || 0) + 1; S.dailyNow = true } }
 
 /* ---------- Wort-Sprung ---------- */
-function startRun(u, li, wi){
+function startRun(u, li, wi, eb = 0){
   curView = 'game';
-  const th = ART.THEMES[wi % ART.THEMES.length];
-  const frde = li < 2; // Level 1–2: Französisch erkennen, Level 3–4: Französisch wählen
-  const items = pickWords(u, CFG.runQuestions);
-  const S = { u, li, th, frde, items, qi: -1, hearts: CFG.hearts, combo: 0, errors: 0, correct: 0, coins: 0, secs: 0, lastAct: Date.now(), started: new Date().toISOString(),
+  const E = EBENEN[eb], th = ART.THEMES[wi % ART.THEMES.length];
+  const frde = eb === 0 ? li < 2 : eb === 1 ? li % 2 === 0 : null; // Meister: gemischt
+  const items = pickWords(u, E.q);
+  const maxH = Math.max(1, CFG.hearts + E.hearts + [0, 1, 1, 2, 2, 3][skl('herz')]);
+  const S = { u, li, wi, eb, E, th, frdeMode: frde, frde: frde ?? true, items, qi: -1, hearts: maxH, maxH, shields: [0, 1, 1, 2, 2, 3][skl('schild')], jokers: [0, 1, 1, 2, 2, 3][skl('joker')], trail: [], tt: 0, combo: 0, errors: 0, correct: 0, coins: 0, secs: 0, lastAct: Date.now(), started: new Date().toISOString(),
     phase: 'run', t: 0, off: 0, cx: 999, py: 0, vy: 0, choice: null, opts: [], ansSlot: -1, crumble: 0, frame: 0, ft: 0, blink: 0, pDropY: 0 };
   const P = particles();
   $('#screen').innerHTML = `<section class="stage">
-    <div class="qbar"><div class="hearts" id="hearts"></div><span class="combo" id="combo"></span><span class="prog" id="prog"></span><button class="hud-btn" id="quit">Karte</button></div>
+    <div class="qbar"><div class="hearts" id="hearts"></div><span class="combo" id="combo"></span><span class="prog" id="prog"></span><span class="perks" id="perks"></span><button class="hud-btn" id="joker" hidden>Joker</button><button class="hud-btn" id="quit">Karte</button></div>
     <div class="board qword" id="q"></div>
-    <div class="canvasbox" id="box"><canvas id="cv" width="${ART.W}" height="${ART.H}"></canvas></div>
+    <div class="canvasbox" id="box"><canvas id="cv" width="${ART.W}" height="${ART.H}"></canvas><span class="ebbadge">${esc(E.name)}</span></div>
     <div class="answers" id="ans"></div></section>`;
   const cv = $('#cv'), c = cv.getContext('2d'), box = $('#box');
   $('#quit').onclick = () => confirmQuit(() => { endRun(S, true) });
-  const hearts = () => { $('#hearts').innerHTML = Array.from({ length: CFG.hearts }, (_, i) => `<i class="${i < S.hearts ? '' : 'off'}"></i>`).join('') };
+  const hearts = () => { $('#hearts').innerHTML = Array.from({ length: S.maxH }, (_, i) => `<i class="${i < S.hearts ? '' : 'off'}"></i>`).join('') };
+  const perks = () => { $('#perks').textContent = S.shields ? `Schild ×${S.shields}` : ''; const j = $('#joker'); j.hidden = !S.jokers; j.textContent = `Joker ×${S.jokers}` };
+  perks();
+  $('#joker').onclick = () => {
+    if(!S.jokers || S.phase !== 'approach' || S.choice !== null || S.jokered) return;
+    const wrong = [0, 1, 2].filter(i => i !== S.ansSlot && !S.gone.includes(i)); if(!wrong.length) return;
+    const k = wrong[Math.random() * wrong.length | 0]; S.gone.push(k); S.jokers--; S.jokered = true; sfx.buy(); perks();
+    const b = document.querySelector(`.ans[data-i="${k}"]`); if(b){ b.disabled = true; b.style.opacity = .35 }
+  };
   const mult = () => Math.min(CFG.comboMax, 1 + Math.floor(S.combo / CFG.comboStep));
   const comboUI = () => { const m = mult(); const el = $('#combo'); el.textContent = S.combo >= 2 ? `Kombo ${S.combo} · ×${m}` : ''; el.classList.remove('big'); void el.offsetWidth; if(S.combo >= 2) el.classList.add('big') };
   hearts();
@@ -273,6 +331,8 @@ function startRun(u, li, wi){
   function nextQ(){
     S.qi++; S.choice = null; S.crumble = 0;
     if(S.qi >= S.items.length || S.hearts <= 0) return finish();
+    if(S.frdeMode === null) S.frde = Math.random() < .5;
+    S.gone = []; S.jokered = false;
     const x = S.items[S.qi], field = S.frde ? 'de' : 'fr';
     const right = x.w[field], opts = shuffle([right, ...distractors(S.u, x, field)]);
     S.opts = opts; S.ansSlot = opts.indexOf(right); S.cx = ART.W + 20; S.phase = 'approach';
@@ -285,7 +345,7 @@ function startRun(u, li, wi){
     document.querySelectorAll('.ans').forEach(b => b.onclick = () => choose(+b.dataset.i));
   }
   function choose(i){
-    if(S.phase !== 'approach' || S.choice !== null) return;
+    if(S.phase !== 'approach' || S.choice !== null || (S.gone || []).includes(i)) return;
     S.choice = i; S.phase = 'rush'; sfx.click(); activeTick(S);
     document.querySelectorAll('.ans').forEach((b, j) => { b.disabled = true; if(j === i) b.style.outline = '4px solid #3b2d3f' });
   }
@@ -300,13 +360,14 @@ function startRun(u, li, wi){
     if(ok){
       S.combo++; S.correct++; G.totals.correct++; prog.stars = (prog.stars || 0) + 1;
       G.totals.bestCombo = Math.max(G.totals.bestCombo, S.combo);
-      const m = mult(), gain = CFG.coin * m; S.coins += gain; addCoins(gain); addXP(CFG.xpCorrect);
+      const m = mult(), gain = Math.round(CFG.coin * m * S.E.reward * (1 + .15 * skl('magnet'))); S.coins += gain; addCoins(gain); addXP(Math.round(CFG.xpCorrect * S.E.reward * (1 + .12 * skl('weise'))));
       floatText(box, '+' + gain, 18, 22, '#fff3b0');
       P.add(PX + 12, PLAT[S.choice] - 16, CONFETTI, 18, 80);
       sfx.coin(); if(S.combo && S.combo % CFG.comboStep === 0){ sfx.combo(m); floatText(box, '×' + m + '!', 40, 30, '#ffd0e0') }
       if(!S.frde) speak(x.w.fr);
     } else {
-      S.combo = 0; S.errors++; S.hearts--; hearts(); sfx.wrong();
+      if(S.shields > 0 && S.combo > 0){ S.shields--; perks(); floatText(box, 'Schild!', 40, 30, '#b8e4f5') } else S.combo = 0;
+      S.errors++; S.hearts--; hearts(); sfx.wrong();
       if(S.frde) setTimeout(() => speak(x.w.fr), 300);
     }
     comboUI(); touchDay(); save();
@@ -316,7 +377,7 @@ function startRun(u, li, wi){
 
   startLoop(dt => {
     S.t += dt; S.ft += dt; if(S.ft > .12){ S.ft = 0; S.frame = (S.frame + 1) % 3 }
-    const v = CFG.speed + CFG.speedPerCombo * Math.min(8, S.combo);
+    const v = (CFG.speed + CFG.speedPerCombo * Math.min(8, S.combo)) * S.E.speed * (1 - .07 * skl('zeit'));
     const sp = S.phase === 'rush' ? 230 : (S.phase === 'end' ? 20 : v);
     S.off += sp * dt;
     if(S.cx < 900) S.cx -= sp * dt;
@@ -351,9 +412,13 @@ function startRun(u, li, wi){
     if(S.phase === 'gap' && S.cx < -80){ S.cx = 999; S.phase = 'run'; S.t = 0 }
     // Zeichnen
     const gaps = S.cx < 900 ? [[S.cx - 4 | 0, S.cx + PW + 8 | 0]] : [];
-    ART.scene(c, S.th, S.t, S.off, { gaps });
-    if(S.cx < 900) S.opts.forEach((o, i) => { const crum = i !== S.choice ? 0 : S.phase === 'crumble' ? S.crumble : (S.phase === 'fall' && !S.timeout) ? 1 : 0; if(crum < 1) ART.platform(c, S.cx | 0, PLAT[i], PW, SLOT[i][1], SLOT[i][2], crum) });
-    if(G.look.pet) ART.creature(c, G.look.pet, PX - 30, ART.GROUND - 24 + (Math.sin(S.t * 10) > 0 ? -2 : 0), 2);
+    ART.scene(c, S.th, S.t, S.off, { gaps, night: S.eb === 2 });
+    if(S.cx < 900) S.opts.forEach((o, i) => { if((S.gone || []).includes(i) && S.choice === null) return; const crum = i !== S.choice ? 0 : S.phase === 'crumble' ? S.crumble : (S.phase === 'fall' && !S.timeout) ? 1 : 0; if(crum < 1) ART.platform(c, S.cx | 0, PLAT[i], PW, SLOT[i][1], SLOT[i][2], crum) });
+    // Spur hinter der Figur
+    const TR = ART.TRAILS[G.look.trail];
+    if(TR){ S.tt += dt; if(S.tt > .07){ S.tt = 0; S.trail.push({ x: PX + 2, y: ART.GROUND - 8 + pyOff - Math.random() * 16, life: 1, col: TR.cols[Math.random() * TR.cols.length | 0] }) }
+      for(let i = S.trail.length - 1; i >= 0; i--){ const p = S.trail[i]; p.life -= dt * 1.4; p.x -= sp * dt; p.y -= 6 * dt; if(p.life <= 0 || p.x < -4){ S.trail.splice(i, 1); continue } ART.trailDot(c, TR, p.x, p.y, p.col) } }
+    if(G.look.pet) ART.creature(c, G.look.pet, PX - 30, ART.GROUND - 24 + (Math.sin(S.t * 10) > 0 ? -2 : 0), 2, ART.petStage(G.cards[G.look.pet] || 1), S.t);
     const visible = S.blink > 0 ? (Math.floor(S.blink * 10) % 2 === 0) : true; if(S.blink > 0) S.blink -= dt;
     if(visible) ART.pip(c, PX, ART.GROUND - 30 + pyOff, G.look, (S.phase === 'jump' || S.phase === 'fall') ? 1 : S.frame, 2);
     if(S.phase === 'ride' && S.pt < .8){ for(let i = 0; i < 3; i++) ART.coin(c, PX + 12 + i * 12 - 12, PLAT[S.choice] - 40 - S.pt * 30 + i * 3, S.t + i) }
@@ -368,11 +433,11 @@ function confirmQuit(go){
 }
 function endRun(S, quit){
   stopLoop(); curView = 'result';
-  const k = S.u.id + ':' + S.li;
+  const k = sKey(S.u.id, S.eb, S.li);
   const stars = quit || S.hearts <= 0 ? 0 : S.errors === 0 ? 3 : S.errors <= 2 ? 2 : 1;
   const prev = G.stars[k] || 0;
   if(stars > prev) G.stars[k] = stars;
-  const bonus = stars * CFG.starBonus; if(bonus) addCoins(bonus);
+  const bonus = Math.round(stars * CFG.starBonus * S.E.reward); if(bonus) addCoins(bonus);
   log(S, 'game');
   const nb = checkBadges();
   save(); hud();
@@ -386,8 +451,8 @@ function endRun(S, quit){
     <div class="gains"><span><i class="coin"></i>+${S.coins + bonus}</span><span>${S.correct} / ${S.items.length} richtig</span></div>
     ${nb.length ? `<p><b>Neues Abzeichen:</b> ${nb.map(b => esc(b[1])).join(', ')}</p>` : ''}
     <div class="row"><button class="pbtn" id="ov-next">${stars ? 'Weiter' : 'Nochmals'}</button><button class="pbtn alt" id="ov-map">Zur Karte</button></div></div>`,
-    { '#ov-next': () => { closeOverlay(); afterDaily(S, () => { const list = units.filter(u => (u.level || '') === group); const wi = list.indexOf(S.u);
-        if(!stars) startRun(S.u, S.li, wi); else if(S.li < 3) startRun(S.u, S.li + 1, wi); else startBoss(S.u, wi) }) },
+    { '#ov-next': () => { closeOverlay(); afterDaily(S, () => {
+        if(!stars) startRun(S.u, S.li, S.wi, S.eb); else if(S.li < 3) startRun(S.u, S.li + 1, S.wi, S.eb); else startBoss(S.u, S.wi, S.eb) }) },
       '#ov-map': () => { closeOverlay(); afterDaily(S, renderMap) } });
 }
 function afterDaily(S, then){
@@ -401,15 +466,17 @@ function log(S, kind){
 }
 
 /* ---------- Boss ---------- */
-function startBoss(u, wi){
+function startBoss(u, wi, eb = 0){
   curView = 'game';
-  const th = ART.THEMES[wi % ART.THEMES.length];
-  const items = pickWords(u, CFG.bossHP + 6);
-  const S = { u, li: 4, th, items, qi: -1, hp: CFG.bossHP, hearts: CFG.hearts, combo: 0, errors: 0, correct: 0, coins: 0, secs: 0, lastAct: Date.now(), started: new Date().toISOString(), t: 0, charge: 0, shots: [], hurt: 0, shake: 0, phurt: 0, phase: 'fight' };
+  const E = EBENEN[eb], th = ART.THEMES[wi % ART.THEMES.length];
+  const items = pickWords(u, E.bossHP + 6);
+  const maxH = Math.max(1, CFG.hearts + E.hearts + [0, 1, 1, 2, 2, 3][skl('herz')]);
+  const bossTime = E.bossTime * (1 + .12 * skl('zeit'));
+  const S = { u, li: 4, wi, eb, E, th, items, qi: -1, hp: E.bossHP, maxHP: E.bossHP, hearts: maxH, maxH, jokers: [0, 1, 1, 2, 2, 3][skl('joker')], combo: 0, errors: 0, correct: 0, coins: 0, secs: 0, lastAct: Date.now(), started: new Date().toISOString(), t: 0, charge: 0, shots: [], hurt: 0, shake: 0, phurt: 0, phase: 'fight' };
   const P = particles();
   $('#screen').innerHTML = `<section class="stage">
     <div class="qbar"><div class="hearts" id="hearts"></div><span class="combo" id="combo"></span><button class="hud-btn" id="quit">Karte</button></div>
-    <div class="bossbar"><span>${esc(th.bossName)}</span><span class="hp"><i id="hp" style="width:100%"></i></span></div>
+    <div class="bossbar"><span>${esc(th.bossName)}${eb ? ' · ' + esc(E.name) : ''}</span><span class="hp"><i id="hp" style="width:100%"></i></span><button class="hud-btn" id="joker" hidden>Joker</button></div>
     <div class="canvasbox" id="box"><canvas id="cv" width="${ART.W}" height="${ART.H}"></canvas></div>
     <div class="board typebox">
       <div class="qword" id="q"></div>
@@ -419,13 +486,16 @@ function startBoss(u, wi){
       <p class="msg" id="msg">Schreib das Wort auf Französisch. Jedes richtige Wort trifft ${esc(th.bossName)}!</p>
     </div></section>`;
   const cv = $('#cv'), c = cv.getContext('2d'), box = $('#box'), inp = $('#inp');
-  const hearts = () => { $('#hearts').innerHTML = Array.from({ length: CFG.hearts }, (_, i) => `<i class="${i < S.hearts ? '' : 'off'}"></i>`).join('') };
+  const hearts = () => { $('#hearts').innerHTML = Array.from({ length: S.maxH }, (_, i) => `<i class="${i < S.hearts ? '' : 'off'}"></i>`).join('') };
   hearts();
+  const jk = () => { const j = $('#joker'); j.hidden = !S.jokers; j.textContent = `Joker ×${S.jokers}` }; jk();
+  $('#joker').onclick = () => { if(!S.jokers || S.phase !== 'fight' || inp.disabled || S.hinted) return; const x = S.items[S.qi]; const t = S.toDe ? x.w.de : x.w.fr;
+    const n = Math.max(2, Math.ceil(t.length / 3)); inp.value = t.slice(0, n); inp.focus(); S.jokers--; S.hinted = true; jk(); sfx.buy() };
   $('#quit').onclick = () => confirmQuit(() => { stopLoop(); log(S, 'game'); save(); renderMap() });
   document.querySelectorAll('.accents button').forEach(b => b.onclick = () => { const p = inp.selectionStart ?? inp.value.length; inp.value = inp.value.slice(0, p) + b.dataset.c + inp.value.slice(inp.selectionEnd ?? p); inp.focus(); inp.setSelectionRange(p + 1, p + 1) });
   function nextQ(){
     S.qi++; if(S.qi >= S.items.length) S.items.push(...pickWords(u, 4));
-    const x = S.items[S.qi]; S.charge = 0; S.toDe = S.qi % 2 === 1; // abwechselnd: auf Französisch, dann auf Deutsch schreiben
+    const x = S.items[S.qi]; S.charge = 0; S.hinted = false; S.toDe = S.qi % 2 === 1; // abwechselnd: auf Französisch, dann auf Deutsch schreiben
     $('#q').innerHTML = S.toDe
       ? `<button class="say" id="say" aria-label="Anhören">${SPK2}</button><span>${esc(x.w.fr)}<small>Was heisst das auf Deutsch?</small></span>`
       : `<span>${esc(x.w.de)}<small>Wie heisst das auf Französisch?</small></span>`;
@@ -446,8 +516,9 @@ function startBoss(u, wi){
     const msg = $('#msg');
     if(hit){
       S.combo++; S.correct++; G.totals.correct++; prog.stars = (prog.stars || 0) + 1; G.totals.bestCombo = Math.max(G.totals.bestCombo, S.combo);
-      const gain = CFG.bossCoin * mult(); S.coins += gain; addCoins(gain); addXP(CFG.xpCorrect + 5);
-      S.shots.push({ x: 80, y: ART.GROUND - 22, t: 0, from: 'me' }); sfx.jump(); if(!S.toDe) speak(x.w.fr);
+      const gain = Math.round(CFG.bossCoin * mult() * S.E.reward * (1 + .15 * skl('magnet'))); S.coins += gain; addCoins(gain); addXP(Math.round((CFG.xpCorrect + 5) * S.E.reward * (1 + .12 * skl('weise'))));
+      S.shots.push({ x: 80, y: ART.GROUND - 22, t: 0, from: 'me' });
+      if(Math.random() < .12 * skl('stern')){ S.shots.push({ x: 80, y: ART.GROUND - 22, t: -.15, from: 'me' }); floatText(box, 'Doppel-Treffer!', 30, 30, '#fff3b0') } sfx.jump(); if(!S.toDe) speak(x.w.fr);
       msg.className = 'msg ok';
       msg.textContent = { ok: 'Treffer!', accent: `Treffer! So schreibt man es: ${target}`, syn: `Treffer! Auch richtig. Im Heft steht: ${target}`,
         article: `Treffer! Mit Artikel: ${target}`, typo: `Treffer! Kleiner Tippfehler, richtig ist: ${target}` }[r.r];
@@ -469,15 +540,15 @@ function startBoss(u, wi){
   nextQ();
   startLoop(dt => {
     S.t += dt;
-    if(S.phase === 'fight' && !inp.disabled){ S.charge += dt / CFG.bossTime; $('#charge').style.width = Math.min(100, S.charge * 100) + '%'; if(S.charge >= 1) answer(null) }
+    if(S.phase === 'fight' && !inp.disabled){ S.charge += dt / bossTime; $('#charge').style.width = Math.min(100, S.charge * 100) + '%'; if(S.charge >= 1) answer(null) }
     ART.scene(c, S.th, S.t, S.t * 6, { night: true });
     // Geschosse
     for(let i = S.shots.length - 1; i >= 0; i--){
       const s = S.shots[i]; s.t += dt;
-      const k = Math.min(1, s.t / .45);
+      const k = Math.max(0, Math.min(1, s.t / .45));
       if(s.from === 'me'){ const x = 80 + (224 - 80) * k, y = ART.GROUND - 22 - Math.sin(k * Math.PI) * 50 + (70 - ART.GROUND + 22) * k;
         c.fillStyle = '#fff3b0'; c.fillRect(x - 2 | 0, y - 2 | 0, 5, 5); c.fillStyle = '#f2c94c'; c.fillRect(x - 1 | 0, y - 1 | 0, 3, 3); P.add(x, y, '#fff3b0', 1, 10);
-        if(k >= 1){ S.shots.splice(i, 1); S.hp--; S.hurt = .3; S.shake = .3; sfx.hit(); P.add(225, 70, CONFETTI, 14, 70); $('#hp').style.width = Math.max(0, S.hp / CFG.bossHP * 100) + '%'; if(S.hp <= 0) win() } }
+        if(k >= 1){ S.shots.splice(i, 1); S.hp--; S.hurt = .3; S.shake = .3; sfx.hit(); P.add(225, 70, CONFETTI, 14, 70); $('#hp').style.width = Math.max(0, S.hp / S.maxHP * 100) + '%'; if(S.hp <= 0 && S.phase === 'fight') win() } }
       else { const x = 210 + (66 - 210) * k, y = 70 + (ART.GROUND - 20 - 70) * k;
         c.fillStyle = '#7ec4e6'; c.fillRect(x | 0, y | 0, 3, 5); c.fillStyle = '#b8e4f5'; c.fillRect(x | 0, y | 0, 1, 2);
         if(k >= 1){ S.shots.splice(i, 1); S.hearts--; S.phurt = 1; hearts(); P.add(66, ART.GROUND - 16, ['#7ec4e6', '#b8e4f5'], 10, 50); if(S.hearts <= 0) lose() } }
@@ -485,7 +556,7 @@ function startBoss(u, wi){
     const bob = Math.sin(S.t * 2) * 4, sx = S.shake > 0 ? (Math.random() - .5) * 4 : 0;
     if(S.hurt > 0) S.hurt -= dt; if(S.shake > 0) S.shake -= dt;
     if(S.phase !== 'won') ART.boss(c, 205 + sx, 52 + bob, S.th.boss[0], S.th.boss[1], S.hurt > 0, 2);
-    if(G.look.pet) ART.creature(c, G.look.pet, 20, ART.GROUND - 24 + (Math.sin(S.t * 6) > 0 ? -2 : 0), 2);
+    if(G.look.pet) ART.creature(c, G.look.pet, 20, ART.GROUND - 24 + (Math.sin(S.t * 6) > 0 ? -2 : 0), 2, ART.petStage(G.cards[G.look.pet] || 1), S.t);
     const vis = S.phurt > 0 ? Math.floor(S.phurt * 10) % 2 === 0 : true; if(S.phurt > 0) S.phurt -= dt;
     if(vis) ART.pip(c, 54, ART.GROUND - 30, G.look, Math.floor(S.t * 4) % 3 === 0 ? 0 : 2, 2);
     if(S.phase === 'won'){ ART.chest(c, 206, ART.GROUND - 24 - Math.max(0, 40 - S.wt * 80), 2, true); S.wt += dt }
@@ -494,28 +565,32 @@ function startBoss(u, wi){
   function win(){
     S.phase = 'won'; S.wt = 0; sfx.win(); inp.disabled = true;
     P.add(225, 70, CONFETTI, 60, 120);
-    const k = u.id + ':4', stars = S.errors === 0 ? 3 : S.errors <= 2 ? 2 : 1;
+    const k = sKey(u.id, eb, 4), stars = S.errors === 0 ? 3 : S.errors <= 2 ? 2 : 1;
+    const firstWin = !G.stars[k];
     if(stars > (G.stars[k] || 0)) G.stars[k] = stars;
-    G.totals.bosses++; addCoins(CFG.bossWin);
+    const winC = Math.round(CFG.bossWin * S.E.reward);
+    G.totals.bosses++; addCoins(winC);
     log(S, 'game'); const nb = checkBadges(); save();
     setTimeout(() => { stopLoop(); overlay(`<div class="board dialog"><h2>${esc(S.th.bossName)} ist besiegt!</h2>
       <div class="bigstars">${[1, 2, 3].map(s => `<i class="${stars >= s ? 'on' : ''}"></i>`).join('')}</div>
-      <div class="gains"><span><i class="coin"></i>+${S.coins + CFG.bossWin}</span><span>${S.correct} Treffer</span></div>
+      <div class="gains"><span><i class="coin"></i>+${S.coins + winC}</span><span>${S.correct} Treffer</span></div>
+      ${firstWin && eb < 2 ? `<p><b>Neue Ebene freigeschaltet:</b> ${esc(EBENEN[eb + 1].name)} (${EBENEN[eb + 1].tag})</p>` : ''}
       ${nb.length ? `<p><b>Neues Abzeichen:</b> ${nb.map(b => esc(b[1])).join(', ')}</p>` : ''}
       <p>Der Boss hat eine goldene Truhe fallen lassen!</p><button class="pbtn" id="ov-ok">Truhe öffnen</button></div>`,
-      { '#ov-ok': () => { closeOverlay(); openChest('boss', () => afterDaily(S, renderMap)) } }) }, 1400);
+      { '#ov-ok': () => { closeOverlay(); openChest(eb ? 'eb' + eb : 'boss', () => afterDaily(S, renderMap)) } }) }, 1400);
   }
   function lose(){
     S.phase = 'lost'; inp.disabled = true; sfx.wrong(); log(S, 'game'); save();
     setTimeout(() => { stopLoop(); overlay(`<div class="board dialog"><h2>Ups, keine Herzen mehr!</h2><p>${esc(S.th.bossName)} hat noch ${S.hp} Leben. Mit jedem Versuch kennst du mehr Wörter.</p>
       <div class="gains"><span><i class="coin"></i>+${S.coins}</span></div><div class="row"><button class="pbtn" id="ov-again">Nochmals</button><button class="pbtn alt" id="ov-map">Zur Karte</button></div></div>`,
-      { '#ov-again': () => { closeOverlay(); afterDaily(S, () => startBoss(u, wi)) }, '#ov-map': () => { closeOverlay(); afterDaily(S, renderMap) } }) }, 900);
+      { '#ov-again': () => { closeOverlay(); afterDaily(S, () => startBoss(u, wi, eb)) }, '#ov-map': () => { closeOverlay(); afterDaily(S, renderMap) } }) }, 900);
   }
 }
 
 /* ---------- Truhen ---------- */
 function openChest(kind, then){
-  const w = kind === 'boss' || kind === 'team' ? CFG.rarityBoss : CFG.rarity;
+  const base = kind === 'eb1' ? EBENEN[1].rar : kind === 'eb2' ? EBENEN[2].rar : (kind === 'boss' || kind === 'team' || kind === 'gold') ? CFG.rarityBoss : CFG.rarity;
+  const lk = skl('klee'), w = [Math.max(10, base[0] - 6 * lk), base[1] + 4 * lk, base[2] + 2 * lk];
   let r = Math.random() * w.reduce((a, b) => a + b), rar = 0; while(r > w[rar]){ r -= w[rar]; rar++ }
   const pool = ART.CREATURES.filter(c => c[5] === rar);
   const fresh = pool.filter(c => !G.cards[c[0]]);
@@ -525,14 +600,15 @@ function openChest(kind, then){
   G.cards[pick[0]] = (G.cards[pick[0]] || 0) + 1;
   if(!isNew) G.coins += CFG.dupCoins;
   const nb = checkBadges(); save(); hud();
-  overlay(`<div class="board dialog"><h2>${kind === 'team' ? 'Teamtruhe!' : kind === 'daily' ? 'Tagestruhe!' : 'Truhe!'}</h2>
+  const stg = ART.petStage(G.cards[pick[0]]), grew = !isNew && stg > ART.petStage(G.cards[pick[0]] - 1);
+  overlay(`<div class="board dialog"><h2>${kind === 'team' ? 'Teamtruhe!' : kind === 'daily' ? 'Tagestruhe!' : kind === 'wood' ? 'Holztruhe!' : 'Truhe!'}</h2>
     <div class="chest"><canvas id="ch" width="32" height="32"></canvas></div><p class="hint" id="ch-hint">Tippe auf die Truhe!</p>
     <div id="ch-res" hidden><h3 style="font-size:1.6rem">${esc(pick[1])}</h3><p><span class="rar r${rar}">${['Normal', 'Selten', 'Episch'][rar]}</span></p>
-      <p>${isNew ? 'Neu in deinem Album!' : `Hast du schon. Dafür gibt es ${CFG.dupCoins} Münzen.`}</p>
+      <p>${isNew ? 'Neu in deinem Album!' : grew ? `${esc(pick[1])} hat sich weiterentwickelt: Stufe ${stg}!` : `Hast du schon (${G.cards[pick[0]]}×). Dafür gibt es ${CFG.dupCoins} Münzen. Ab 3× und 6× entwickelt es sich.`}</p>
       ${nb.length ? `<p><b>Neues Abzeichen:</b> ${nb.map(b => esc(b[1])).join(', ')}</p>` : ''}
       <div class="row"><button class="pbtn" id="ov-ok">Super!</button>${isNew ? '<button class="pbtn alt" id="ov-pet">Als Begleiter</button>' : ''}</div></div></div>`, {});
   const cv = $('#ch'), c = cv.getContext('2d'); let opened = false, t = 0, id = 0;
-  const drawC = () => { c.clearRect(0, 0, 32, 32); if(!opened){ const s = Math.sin(t * 20) * (t % 1.2 > .9 ? 1 : 0); ART.chest(c, 8 + s, 12, 1, kind !== 'daily') } else ART.creature(c, pick[0], 10, 10 - Math.max(0, 6 - t * 20), 1); t += .016; id = requestAnimationFrame(drawC) };
+  const drawC = () => { c.clearRect(0, 0, 32, 32); if(!opened){ const s = Math.sin(t * 20) * (t % 1.2 > .9 ? 1 : 0); ART.chest(c, 8 + s, 12, 1, kind !== 'daily' && kind !== 'wood') } else ART.creature(c, pick[0], 10, 10 - Math.max(0, 6 - t * 20), 1, stg, t); t += .016; id = requestAnimationFrame(drawC) };
   drawC();
   const openIt = () => { if(opened) return; opened = true; t = 0; sfx.chest(); $('#ch-hint').hidden = true; $('#ch-res').hidden = false;
     $('#ov-ok').onclick = () => { cancelAnimationFrame(id); closeOverlay(); then && then() };
@@ -559,20 +635,41 @@ function renderBadges(){
 }
 
 /* ---------- Shop ---------- */
-let shopTab = 'hat';
+let shopTab = 'skill';
+const SHOPTABS = [['skill', 'Kräfte'], ['hat', 'Mützen'], ['face', 'Gesicht'], ['color', 'Farben'], ['trail', 'Spuren'], ['chest', 'Truhen']];
 function renderShop(){
   curView = 'shop';
-  const items = SHOP.filter(s => s.kind === shopTab);
-  $('#screen').innerHTML = `<section class="board"><div class="panelhead"><h2>Shop</h2><nav class="tabs2"><button data-t="hat" aria-pressed="${shopTab === 'hat'}">Mützen</button><button data-t="color" aria-pressed="${shopTab === 'color'}">Farben</button></nav></div><p class="hint">Münzen verdienst du mit richtigen Wörtern.</p></section>
-    <section class="grid">${items.map(s => {
-      const own = !!G.owned[s.id], worn = s.kind === 'hat' ? G.look.hat === s.key : G.look.color === s.key;
-      return `<div class="item ${worn ? 'worn' : ''}"><canvas width="16" height="20" data-s="${s.id}"></canvas><b>${esc(s.name)}</b>
-        ${own ? `<button class="${worn ? 'alt' : ''}" data-wear="${s.id}">${worn ? (s.kind === 'hat' ? 'Ablegen' : 'Trägst du') : 'Anziehen'}</button>` : `<span class="price"><i class="coin"></i>${s.price}</span><button data-buy="${s.id}" ${G.coins < s.price ? 'disabled' : ''}>Kaufen</button>`}</div>`;
-    }).join('')}</section>`;
+  const L = lvlOf(G.xp).lvl;
+  const head = `<section class="board"><div class="panelhead"><h2>Shop</h2><span class="hud-coins"><i class="coin"></i>${G.coins}</span></div>
+    <nav class="tabs2" style="margin-top:8px">${SHOPTABS.map(([k, n]) => `<button data-t="${k}" aria-pressed="${shopTab === k}">${n}</button>`).join('')}</nav>
+    <p class="hint" style="margin-top:6px">${shopTab === 'skill' ? 'Kräfte helfen dir in jedem Level. Jede Kraft hat 5 Stufen.' : shopTab === 'chest' ? 'In Truhen stecken Wesen. Doppelte Wesen entwickeln sich weiter.' : 'Mit höherem Level gibt es neue Sachen. Münzen verdienst du mit richtigen Wörtern.'}</p></section>`;
+  let body = '';
+  if(shopTab === 'skill'){
+    body = `<section class="skills">${SKILLS.map(([id, name, desc, prices, eff]) => { const l = skl(id), max = l >= 5, p = prices[l];
+      return `<div class="item skill"><div class="sk-top"><b>${esc(name)}</b><span class="pips">${[1, 2, 3, 4, 5].map(i => `<i class="${i <= l ? 'on' : ''}"></i>`).join('')}</span></div>
+        <small>${esc(desc)}</small><small class="eff">${l ? 'Jetzt: ' + eff(l) : 'Noch nicht gekauft'}${max ? '' : ' → Stufe ' + (l + 1) + ': ' + eff(l + 1)}</small>
+        ${max ? '<span class="maxed">Maximal!</span>' : `<button data-skill="${id}" ${G.coins < p ? 'disabled' : ''}><i class="coin"></i> ${p}</button>`}</div>` }).join('')}</section>`;
+  } else if(shopTab === 'chest'){
+    body = `<section class="grid">${CHESTS.map(([id, name, price, desc]) => `<div class="item"><canvas width="20" height="16" data-chest="${id}"></canvas><b>${esc(name)}</b><small>${esc(desc)}</small><span class="price"><i class="coin"></i>${price}</span><button data-buychest="${id}" ${G.coins < price ? 'disabled' : ''}>Kaufen</button></div>`).join('')}</section>`;
+  } else {
+    const items = SHOP.filter(s => s.kind === shopTab);
+    const worn = s => G.look[s.kind] === s.key;
+    body = `<section class="grid">${items.map(s => { const own = !!G.owned[s.id], lock = !own && L < s.lvl;
+      return `<div class="item ${worn(s) ? 'worn' : ''} ${lock ? 'lvl-lock' : ''}"><canvas width="${s.kind === 'trail' ? 24 : 16}" height="20" data-s="${s.id}"></canvas><b>${esc(s.name)}</b>
+        ${own ? `<button class="${worn(s) ? 'alt' : ''}" data-wear="${s.id}">${worn(s) ? (s.kind === 'color' ? 'Trägst du' : 'Ablegen') : 'Anziehen'}</button>`
+          : lock ? `<small>ab Level ${s.lvl}</small>` : `<span class="price"><i class="coin"></i>${s.price}</span><button data-buy="${s.id}" ${G.coins < s.price ? 'disabled' : ''}>Kaufen</button>`}</div>` }).join('')}</section>`;
+  }
+  $('#screen').innerHTML = head + body;
   document.querySelectorAll('[data-t]').forEach(b => b.onclick = () => { sfx.click(); shopTab = b.dataset.t; renderShop() });
-  document.querySelectorAll('[data-s]').forEach(cv => { const s = SHOP.find(x => x.id === cv.dataset.s); avatarCanvas(cv, s.kind === 'hat' ? { ...G.look, hat: s.key } : { ...G.look, color: s.key }) });
-  document.querySelectorAll('[data-buy]').forEach(b => b.onclick = () => { const s = SHOP.find(x => x.id === b.dataset.buy); if(G.coins < s.price) return; G.coins -= s.price; G.owned[s.id] = 1; s.kind === 'hat' ? G.look.hat = s.key : G.look.color = s.key; sfx.buy(); const nb = checkBadges(); if(nb.length) toast('Neues Abzeichen: ' + nb[0][1]); save(); hud(); renderShop() });
-  document.querySelectorAll('[data-wear]').forEach(b => b.onclick = () => { const s = SHOP.find(x => x.id === b.dataset.wear); if(s.kind === 'hat') G.look.hat = G.look.hat === s.key ? null : s.key; else G.look.color = s.key; sfx.click(); save(); hud(); renderShop() });
+  document.querySelectorAll('[data-s]').forEach(cv => { const s = SHOP.find(x => x.id === cv.dataset.s);
+    if(s.kind === 'trail'){ const c = cv.getContext('2d'), tr = ART.TRAILS[s.key]; for(let i = 0; i < 7; i++) ART.trailDot(c, tr, 1 + i * 3, 4 + (i * 7) % 12, tr.cols[i % tr.cols.length]); ART.pip(c, 12, 5, { ...G.look }, 0) }
+    else avatarCanvas(cv, { ...G.look, [s.kind]: s.key }) });
+  document.querySelectorAll('[data-chest]').forEach(cv => ART.chest(cv.getContext('2d'), 2, 2, 1, cv.dataset.chest === 'gold'));
+  document.querySelectorAll('[data-buy]').forEach(b => b.onclick = () => { const s = SHOP.find(x => x.id === b.dataset.buy); if(G.coins < s.price) return; G.coins -= s.price; G.owned[s.id] = 1; G.look[s.kind] = s.key; sfx.buy(); const nb = checkBadges(); if(nb.length) toast('Neues Abzeichen: ' + nb[0][1]); save(); hud(); renderShop() });
+  document.querySelectorAll('[data-wear]').forEach(b => b.onclick = () => { const s = SHOP.find(x => x.id === b.dataset.wear); if(s.kind === 'color') G.look.color = s.key; else G.look[s.kind] = G.look[s.kind] === s.key ? null : s.key; sfx.click(); save(); hud(); renderShop() });
+  document.querySelectorAll('[data-skill]').forEach(b => b.onclick = () => { const sk = SKILLS.find(x => x[0] === b.dataset.skill), l = skl(sk[0]), p = sk[3][l]; if(l >= 5 || G.coins < p) return;
+    G.coins -= p; G.skills[sk[0]] = l + 1; sfx.level(); toast(sk[1] + ' jetzt auf Stufe ' + (l + 1) + '!'); const nb = checkBadges(); if(nb.length) setTimeout(() => toast('Neues Abzeichen: ' + nb[0][1]), 1500); save(); hud(); renderShop() });
+  document.querySelectorAll('[data-buychest]').forEach(b => b.onclick = () => { const ch = CHESTS.find(x => x[0] === b.dataset.buychest); if(G.coins < ch[2]) return; G.coins -= ch[2]; hud(); save(); openChest(ch[0] === 'gold' ? 'gold' : 'wood', () => renderShop()) });
 }
 
 /* ---------- Album ---------- */
@@ -581,9 +678,9 @@ function renderAlbum(){
   const n = Object.keys(G.cards).length;
   $('#screen').innerHTML = `<section class="board"><div class="panelhead"><h2>Album</h2><span class="hint">${n} von ${ART.CREATURES.length} Wesen</span></div><p class="hint">Truhen gibt es für besiegte Bosse, das Tagesziel und das Teamziel. Ein Wesen kann dich als Begleiter durchs Spiel begleiten.</p></section>
     <section class="grid">${ART.CREATURES.map(cr => { const have = G.cards[cr[0]];
-      return `<div class="item cre ${have ? (G.look.pet === cr[0] ? 'worn' : '') : 'locked'}"><canvas width="14" height="14" data-c="${cr[0]}"></canvas><b>${have ? esc(cr[1]) : '???'}</b><span class="rar r${cr[5]}">${['Normal', 'Selten', 'Episch'][cr[5]]}</span>
-        ${have ? `<button class="${G.look.pet === cr[0] ? 'alt' : ''}" data-pet="${cr[0]}">${G.look.pet === cr[0] ? 'Begleitet dich' : 'Als Begleiter'}</button>${have > 1 ? `<small>${have}×</small>` : ''}` : ''}</div>` }).join('')}</section>`;
-  document.querySelectorAll('[data-c]').forEach(cv => ART.creature(cv.getContext('2d'), cv.dataset.c, 1, 1, 1));
+      return `<div class="item cre ${have ? (G.look.pet === cr[0] ? 'worn' : '') : 'locked'}"><canvas width="14" height="17" data-c="${cr[0]}"></canvas><b>${have ? esc(cr[1]) : '???'}</b><span class="rar r${cr[5]}">${['Normal', 'Selten', 'Episch'][cr[5]]}</span>
+        ${have ? `<button class="${G.look.pet === cr[0] ? 'alt' : ''}" data-pet="${cr[0]}">${G.look.pet === cr[0] ? 'Begleitet dich' : 'Als Begleiter'}</button><small>Stufe ${ART.petStage(have)} · ${have}×</small>` : ''}</div>` }).join('')}</section>`;
+  document.querySelectorAll('[data-c]').forEach(cv => ART.creature(cv.getContext('2d'), cv.dataset.c, 1, 4, 1, ART.petStage(G.cards[cv.dataset.c] || 1), 1));
   document.querySelectorAll('[data-pet]').forEach(b => b.onclick = () => { G.look.pet = G.look.pet === b.dataset.pet ? null : b.dataset.pet; sfx.click(); save(); renderAlbum() });
 }
 
