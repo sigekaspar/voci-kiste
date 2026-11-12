@@ -39,7 +39,43 @@ function synth(t){
     speechSynthesis.speak(u);
   }catch{}
 }
+// Azure-Aufnahmen aus Supabase (von der Elternseite erzeugt) haben Vorrang
+let CLOUD = null, CLOUD_BASE = '';
+async function loadCloudAudio(sb){
+  try{
+    const C = window.VOCI_CONFIG || {};
+    CLOUD_BASE = String(C.url || '').trim().replace(/\/(rest|auth)\/v1\/?.*$/, '').replace(/\/+$/, '') + '/storage/v1/object/public/audio/';
+    const { data } = await sb.from('audio_clips').select('key,path,voice,updated_at').limit(5000);
+    if(data){ CLOUD = {}; data.forEach(r => CLOUD[r.key] = r) }
+  }catch{}
+  return CLOUD;
+}
+const cloudURL = r => CLOUD_BASE + r.path + '?v=' + Date.parse(r.updated_at);
+// Alle Texte, die vorgelesen werden können (Wörter, Beispielsätze, Grammatik)
+function collectTexts(units){
+  const out = new Map(), add = (t, kind, unit) => { const k = audioKey(t); if(k && !out.has(k)) out.set(k, { key:k, kind, unit }) };
+  for(const u of units){
+    const name = (u.level ? (LEVELS[u.level] || u.level) + ' · ' : '') + u.title;
+    (u.words || []).forEach(w => { if(w.fr) add(w.fr, 'Wort', name) });
+    (u.words || []).forEach(w => { if(w.ex) add(w.ex, 'Satz', name) });
+    const g = u.grammar || {};
+    (g.rules || []).forEach(r => (r.ex || []).forEach(([fr]) => add(fr.replace(/[→·]/g, ','), 'Grammatik', name)));
+    (g.tasks || []).forEach(t => add(t.t === 'l' ? t.say : t.t === 'w' ? t.a : (t.q.includes('___') ? t.q.replace('___', t.a) : t.a), 'Grammatik', name));
+  }
+  return [...out.values()];
+}
+// Text für die Sprachausgabe säubern: «(m)», «/», «…» usw.
+function speakable(t){
+  let s = String(t).replace(/\((?:m|f|mpl|fpl|m\/f)\)/g, '').replace(/[()]/g, '').replace(/ \/ /g, ', ').replace(/\//g, ', ').replace(/[…→–]/g, ',');
+  s = s.replace(/\s*,\s*(,\s*)+/g, ', ').replace(/\s+/g, ' ').trim().replace(/^[ ,]+|[ ,]+$/g, '');
+  return s || String(t);
+}
 function speak(t){
+  const c = CLOUD && CLOUD[audioKey(t)];
+  if(c){ try{ if(curAudio) curAudio.pause(); curAudio = new Audio(cloudURL(c)); curAudio.play().catch(() => speakLocal(t)); return }catch{} }
+  speakLocal(t);
+}
+function speakLocal(t){
   const f = AUDIO && AUDIO[audioKey(t)];
   if(f){
     try{

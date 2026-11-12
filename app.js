@@ -2,6 +2,7 @@
 const IDLE_CAP = 90; // Sekunden: längere Pausen zählen nicht als Übungszeit
 
 const { sb, error: setupErr } = makeClient();
+if(sb) loadCloudAudio(sb);
 let kid = ls.get('vk-kid', null);       // { name, pin }
 let units = [], sel = new Set(), dir = 'de-fr', how = 'write', view = 'home', sess = null;
 let prog = { cards:{}, stars:0, streak:0, lastDay:'' };

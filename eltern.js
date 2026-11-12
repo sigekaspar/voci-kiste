@@ -1,5 +1,6 @@
 // Voci-Kiste · Elternseite
 const { sb, error: setupErr } = makeClient();
+if(sb) loadCloudAudio(sb);
 let tab = 'overview', units = [], kids = [], states = {}, sessions = [];
 let editing = null, sure = null, pinEdit = null;
 const WD = ['So','Mo','Di','Mi','Do','Fr','Sa'];
@@ -59,7 +60,7 @@ async function loadAll(){
   states = {}; (s.data || []).forEach(x => states[x.kid_id] = x);
 }
 
-function render(){ ({ overview:renderOverview, words:renderWords, kids:renderKids })[tab]() }
+function render(){ ({ overview:renderOverview, words:renderWords, kids:renderKids, audio:renderAudio })[tab]() }
 
 /* ---------- Fortschritt ---------- */
 const mins = s => s < 60 ? (s ? '<1' : '0') : String(Math.round(s / 60));

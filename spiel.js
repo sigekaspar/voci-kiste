@@ -38,6 +38,7 @@ const BADGES = [
 const SLOT = [['var(--berry)', '#e86a6a', '#b54646', '1', '↑'], ['var(--mint)', '#5fc4a0', '#3a9479', '2', '→'], ['var(--honey)', '#f2b84b', '#c98a24', '3', '↓']];
 
 const { sb, error: setupErr } = makeClient();
+if(sb) loadCloudAudio(sb);
 let kid = ls.get('vk-kid', null), units = [], prog = null, G = null, team = null, group = null;
 const SPK2 = '<svg viewBox="0 0 24 24" fill="none" stroke="#3b2d3f" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z" fill="#3b2d3f"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg>';
 
