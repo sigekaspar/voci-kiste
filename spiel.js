@@ -231,6 +231,14 @@ function renderMap(){
     if(!ebOpen(uid, eb)){ sfx.wrong(); toast('Besiege zuerst den Boss der Ebene ' + EBENEN[eb - 1].name + '!'); return }
     sfx.click(); G.ebSel[uid] = eb; save(); renderMap();
   });
+  document.querySelectorAll('[data-mico]').forEach(cv => { const c = cv.getContext('2d');
+    if(cv.dataset.mico === 'arena'){ ART.draw(c, FOES.slime, { k: ART.INK, B: '#8fd46b', D: '#5a9e45', W: '#fff' }, 10, 10, true, 1); ART.pip(c, 0, 9, G.look, 2) }
+    else { ART.pip(c, 2, 9, { ...G.look, hat: 'chef' }, 0); c.fillStyle = ART.INK; c.fillRect(14, 17, 10, 6); c.fillStyle = '#f2b84b'; c.fillRect(15, 18, 8, 4) } });
+  document.querySelectorAll('.mode[data-mode]').forEach(b => b.onclick = () => {
+    sfx.click(); ac();
+    const u = units.find(x => x.id === b.dataset.u), wi = list.indexOf(u), eb = G.ebSel[u.id] || 0;
+    b.dataset.mode === 'arena' ? startArena(u, wi, eb) : startBakery(u, wi, eb);
+  });
   document.querySelectorAll('.node[data-u]').forEach(b => b.onclick = () => {
     if(b.classList.contains('locked')){ sfx.wrong(); toast('Zuerst das Level davor schaffen!'); return }
     sfx.click(); ac();
@@ -243,17 +251,19 @@ function worldHTML(u, wi){
   const eb = ebOpen(u.id, G.ebSel[u.id] || 0) ? (G.ebSel[u.id] || 0) : 0;
   const st = i => G.stars[sKey(u.id, eb, i)] || 0;
   const open = i => i === 0 || st(i - 1) >= 1;
-  const total = [0, 1, 2].reduce((a, e) => a + [0, 1, 2, 3, 4].reduce((b, i) => b + (G.stars[sKey(u.id, e, i)] || 0), 0), 0);
+  const total = [0, 1, 2].reduce((a, e) => a + [0, 1, 2, 3, 4, 5, 6].reduce((b, i) => b + (G.stars[sKey(u.id, e, i)] || 0), 0), 0);
   const nextI = [0, 1, 2, 3, 4].find(i => open(i) && !st(i));
   return `<article class="world eb${eb}">
-    <div class="banner"><canvas id="ban-${esc(u.id)}" width="320" height="70"></canvas><h2>${esc(u.title)}</h2><small>${total} / 45 ★</small></div>
+    <div class="banner"><canvas id="ban-${esc(u.id)}" width="320" height="70"></canvas><h2>${esc(u.title)}</h2><small>${total} / 63 ★</small></div>
     <div class="ebtabs">${EBENEN.map((E, e) => { const o = ebOpen(u.id, e); return `<button class="ebtab" data-w="${esc(u.id)}" data-eb="${e}" aria-pressed="${e === eb}" ${o ? '' : 'data-lock="1"'}>${o ? '' : '<span aria-hidden="true">🔒</span> '}${E.name}<small>${E.tag}</small></button>` }).join('')}</div>
     <div class="path">${[0, 1, 2, 3, 4].map(i => {
       const boss = i === 4, lock = !open(i);
       return `<button class="node ${boss ? 'boss' : ''} ${lock ? 'locked' : ''} ${i === nextI ? 'next' : ''}" data-u="${esc(u.id)}" data-i="${i}" aria-label="${boss ? 'Boss ' + th.bossName : 'Level ' + (i + 1)}${lock ? ', gesperrt' : ''}">
         ${boss ? (lock ? '?' : `<canvas id="bossico-${esc(u.id)}" width="20" height="16"></canvas>`) : (lock ? '·' : i + 1)}
         ${!lock ? `<span class="st">${[1, 2, 3].map(s => `<i class="${st(i) >= s ? 'on' : ''}"></i>`).join('')}</span>` : ''}</button>`;
-    }).join('')}</div></article>`;
+    }).join('')}</div>
+    <div class="modes">${[['arena', 'Wort-Arena', 'Kampf: Hau die Grummel weg'], ['bakery', 'Bäckerei', 'Back die Wörter richtig']].map(([m, n, d]) => { const k = MODES[m].node;
+      return `<button class="mode ${m}" data-mode="${m}" data-u="${esc(u.id)}"><canvas width="24" height="24" data-mico="${m}"></canvas><span><b>${n}</b><small>${d}</small></span><span class="st">${[1, 2, 3].map(s => `<i class="${st(k) >= s ? 'on' : ''}"></i>`).join('')}</span></button>` }).join('')}</div></article>`;
 }
 function ringSVG(p, col){
   const r = 22, c = 2 * Math.PI * r;

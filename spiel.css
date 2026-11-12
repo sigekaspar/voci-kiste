@@ -175,4 +175,48 @@ canvas{image-rendering:pixelated;image-rendering:crisp-edges}
 .item.lvl-lock small{font-family:var(--pixel);color:var(--berry-d)}
 @media (max-width:420px){ .ebtab{font-size:.85rem} }
 
+
+/* Stationen Arena & Bäckerei */
+.modes{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:0 12px 16px;background:inherit}
+.mode{display:flex;align-items:center;gap:8px;text-align:left;border:3px solid var(--ink);border-radius:6px;box-shadow:0 3px 0 var(--ink);padding:6px 8px;position:relative;min-width:0}
+.mode.arena{background:#fbd9d9}.mode.bakery{background:#ffe9c4}
+.mode canvas{width:40px;height:40px;flex:0 0 auto}
+.mode span{display:flex;flex-direction:column;min-width:0}
+.mode b{font-family:var(--pixel);font-size:1.05rem}
+.mode small{font-size:.75rem;color:var(--muted)}
+.mode .st{position:absolute;right:6px;top:4px;display:flex;flex-direction:row;gap:1px}
+.mode .st i{width:10px;height:10px;background:#d9c9b2;clip-path:polygon(50% 0,62% 36%,100% 38%,70% 60%,80% 100%,50% 77%,20% 100%,30% 60%,0 38%,38% 36%)}
+.mode .st i.on{background:var(--honey)}
+@media (max-width:420px){ .modes{grid-template-columns:1fr} }
+/* Arena */
+#tags{position:absolute;inset:0;pointer-events:none}
+.foetag{position:absolute;transform:translate(-50%,-100%);pointer-events:auto;font-family:var(--pixel);font-weight:700;font-size:clamp(.8rem,2.6vw,1.05rem);white-space:nowrap;background:var(--paper);border:3px solid var(--ink);border-radius:5px;box-shadow:0 3px 0 var(--ink);padding:3px 8px;max-width:46%;overflow:hidden;text-overflow:ellipsis}
+.foetag b{display:inline-block;background:var(--ink);color:#fff;border-radius:3px;padding:0 4px;margin-right:3px;font-size:.8em}
+.foetag:active{transform:translate(-50%,-100%) translateY(2px)}
+.foetag.right{background:#d5f2e5}.foetag.wrong{background:#fbd9d9}
+.foetag:disabled{cursor:default}
+.superbar{display:flex;align-items:center;gap:8px;font-family:var(--pixel);font-weight:700}
+.superbar .hp{flex:1;height:14px;background:#e8d9c4;border:3px solid var(--ink);border-radius:4px;overflow:hidden}
+.superbar .hp i{display:block;height:100%;background:repeating-linear-gradient(90deg,#ffe27a 0 6px,#f2b84b 6px 12px);transition:width .3s}
+.superbar .pbtn{font-size:.95rem;padding:6px 10px}
+.pbtn.glow{animation:glow .6s ease-in-out infinite alternate;background:#ffe27a}
+@keyframes glow{to{box-shadow:0 4px 0 var(--ink),0 0 16px 4px #ffe27a}}
+/* Bäckerei */
+.bakeq{display:flex;flex-direction:column;gap:10px}
+.dough{display:flex;flex-wrap:wrap;gap:4px;justify-content:center}
+.slot{min-width:30px;height:38px;border:3px dashed #c9a27e;border-radius:6px;display:grid;place-items:center;font-family:var(--pixel);font-weight:700;font-size:1.4rem;background:#fff;padding:0 4px}
+.slot.on{border-style:solid;border-color:var(--ink);background:#ffe9c4}
+.slot.cur{border-color:var(--berry);animation:bob 1s ease-in-out infinite}
+.slot.fixed{border-color:transparent;background:none;min-width:12px}
+.slot.gap{border:0;min-width:14px;background:none}
+.slot.art{min-width:44px}
+.tray{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;background:repeating-linear-gradient(0deg,#cfd4dc 0 2px,#e2e6ec 2px 10px);border:3px solid var(--ink);border-radius:8px;padding:12px;min-height:70px}
+.cookie{width:48px;height:48px;border-radius:50%;border:3px solid var(--ink);background:radial-gradient(circle at 35% 30%,#ffe9c4 0 25%,#e8b77a 26% 75%,#c98a4a 76%);box-shadow:0 3px 0 var(--ink);font-family:var(--pixel);font-weight:700;font-size:1.45rem;color:var(--ink);display:grid;place-items:center}
+.cookie.art{width:auto;min-width:56px;border-radius:24px;padding:0 10px;font-size:1.2rem}
+.cookie:disabled{visibility:hidden}
+.cookie:active{transform:translateY(3px);box-shadow:0 0 0 var(--ink)}
+.cookie.nope{animation:nope .35s}
+.cookie.hint{outline:4px solid var(--mint);outline-offset:2px}
+@keyframes nope{25%{transform:translateX(-6px) rotate(-8deg)}75%{transform:translateX(6px) rotate(8deg)}}
+
 @media (max-width:560px){ .hud{gap:5px} .hud-btn{font-size:.85rem;padding:3px 6px} .xp{width:64px} .mapgoals{grid-template-columns:1fr} .hud-me canvas{width:24px;height:30px} }
