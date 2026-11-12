@@ -424,29 +424,37 @@ function startBoss(u, wi){
   document.querySelectorAll('.accents button').forEach(b => b.onclick = () => { const p = inp.selectionStart ?? inp.value.length; inp.value = inp.value.slice(0, p) + b.dataset.c + inp.value.slice(inp.selectionEnd ?? p); inp.focus(); inp.setSelectionRange(p + 1, p + 1) });
   function nextQ(){
     S.qi++; if(S.qi >= S.items.length) S.items.push(...pickWords(u, 4));
-    const x = S.items[S.qi]; S.charge = 0;
-    $('#q').innerHTML = `<span>${esc(x.w.de)}<small>Wie heisst das auf Französisch?</small></span>`;
+    const x = S.items[S.qi]; S.charge = 0; S.toDe = S.qi % 2 === 1; // abwechselnd: auf Französisch, dann auf Deutsch schreiben
+    $('#q').innerHTML = S.toDe
+      ? `<button class="say" id="say" aria-label="Anhören">${SPK2}</button><span>${esc(x.w.fr)}<small>Was heisst das auf Deutsch?</small></span>`
+      : `<span>${esc(x.w.de)}<small>Wie heisst das auf Französisch?</small></span>`;
+    inp.placeholder = S.toDe ? 'auf Deutsch …' : 'auf Französisch …';
+    document.querySelector('.accents').hidden = S.toDe;
+    if(S.toDe){ $('#say').onclick = () => speak(x.w.fr); setTimeout(() => speak(x.w.fr), 200) }
     inp.value = ''; inp.disabled = false; inp.focus();
   }
   function mult(){ return Math.min(CFG.comboMax, 1 + Math.floor(S.combo / CFG.comboStep)) }
   function answer(val){
     if(S.phase !== 'fight') return;
     const x = S.items[S.qi]; activeTick(S);
-    const r = val === null ? { r: 'wrong' } : check(val, x.w.fr);
-    const hit = r.r === 'ok' || r.r === 'accent' || r.r === 'article';
-    leitner(x.key, r.r === 'ok' || r.r === 'accent', true);
+    const target = S.toDe ? x.w.de : x.w.fr;
+    const r = val === null ? { r: 'wrong' } : checkGame(val, target, S.toDe ? 'de' : 'fr');
+    const hit = r.r !== 'wrong';
+    leitner(x.key, hit, r.r === 'ok' || r.r === 'accent' || r.r === 'syn');
     G.totals.answers++;
     const msg = $('#msg');
     if(hit){
       S.combo++; S.correct++; G.totals.correct++; prog.stars = (prog.stars || 0) + 1; G.totals.bestCombo = Math.max(G.totals.bestCombo, S.combo);
       const gain = CFG.bossCoin * mult(); S.coins += gain; addCoins(gain); addXP(CFG.xpCorrect + 5);
-      S.shots.push({ x: 80, y: ART.GROUND - 22, t: 0, from: 'me' }); sfx.jump(); speak(x.w.fr);
-      msg.className = 'msg ok'; msg.textContent = r.r === 'ok' ? 'Treffer!' : r.r === 'accent' ? `Treffer! Achte auf die Akzente: ${x.w.fr}` : `Treffer! Aber nicht den Artikel vergessen: ${x.w.fr}`;
+      S.shots.push({ x: 80, y: ART.GROUND - 22, t: 0, from: 'me' }); sfx.jump(); if(!S.toDe) speak(x.w.fr);
+      msg.className = 'msg ok';
+      msg.textContent = { ok: 'Treffer!', accent: `Treffer! So schreibt man es: ${target}`, syn: `Treffer! Auch richtig. Im Heft steht: ${target}`,
+        article: `Treffer! Mit Artikel: ${target}`, typo: `Treffer! Kleiner Tippfehler, richtig ist: ${target}` }[r.r];
       floatText(box, '+' + gain, 20, 50, '#fff3b0');
     } else {
       S.combo = 0; S.errors++;
       S.shots.push({ x: 210, y: 70, t: 0, from: 'boss' }); sfx.wrong();
-      msg.className = 'msg bad'; msg.textContent = (val === null ? 'Zu langsam! ' : 'Leider falsch. ') + 'Richtig ist: ' + x.w.fr;
+      msg.className = 'msg bad'; msg.textContent = (val === null ? 'Zu langsam! ' : 'Leider falsch. ') + 'Richtig ist: ' + target;
       setTimeout(() => speak(x.w.fr), 300);
       S.items.push(x); // kommt nochmals dran
     }

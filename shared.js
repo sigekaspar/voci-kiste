@@ -71,6 +71,34 @@ function check(input, target){
   for(const t of alts){ const n = norm(t); if(noArt(n) !== n && deacc(a) === deacc(noArt(n))) return { r:'article', t } }
   return { r:'wrong', t: alts[0] };
 }
+/* ---------- Nachsichtig prüfen (Spiel): Tippfehler, Umlaute, Artikel, deutsche Synonyme ---------- */
+const umlaut = s => s.replace(/ae/g, 'a').replace(/oe/g, 'o').replace(/ue/g, 'u').replace(/ß/g, 'ss');
+const loose = s => umlaut(deacc(norm(String(s)).replace(/ß/g, 'ss'))).replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+const ART_RE = /^(le |la |les |l'|un |une |des |du |de la |der |die |das |den |dem |ein |eine |einen |einem )/;
+const core = s => loose(norm(String(s)).replace(ART_RE, ''));
+let SYN = {};
+fetch('synonyme.json', { cache:'no-cache' }).then(r => r.ok ? r.json() : {}).then(j => { SYN = {}; Object.entries(j || {}).forEach(([k, v]) => { if(Array.isArray(v)) SYN[core(k)] = v }) }).catch(() => {});
+function lev(a, b){
+  if(a === b) return 0; const m = a.length, n = b.length; if(!m || !n) return m || n;
+  let prev = Array.from({ length: n + 1 }, (_, j) => j);
+  for(let i = 1; i <= m; i++){ const cur = [i]; for(let j = 1; j <= n; j++){ cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)); } prev = cur }
+  return prev[n];
+}
+const tolerance = len => len <= 3 ? 0 : len <= 6 ? 1 : len <= 11 ? 2 : 3;
+// Ergebnis: ok, accent, syn (Synonym), article, typo, wrong
+function checkGame(input, target, lang){
+  const base = check(input, target);
+  if(base.r === 'ok' || base.r === 'accent') return base;
+  const own = splitAlts(target).flatMap(variants);
+  const alts = own.map(t => ({ t, syn:false }));
+  if(lang === 'de') own.forEach(t => (SYN[core(t)] || []).forEach(s => alts.push({ t:s, syn:true, of:t })));
+  const a = loose(input), ac = core(input);
+  if(!a) return { r:'wrong', t: own[0] };
+  for(const x of alts) if(a === loose(x.t)) return { r: x.syn ? 'syn' : 'accent', t: x.syn ? x.of : x.t };
+  for(const x of alts) if(ac && ac === core(x.t)) return { r: x.syn ? 'syn' : lang === 'de' ? 'ok' : 'article', t: x.syn ? x.of : x.t };
+  for(const x of alts){ const c = core(x.t); if(ac && lev(ac, c) <= tolerance(c.length)) return { r:'typo', t: x.syn ? x.of : x.t } }
+  return { r:'wrong', t: own[0] };
+}
 function accentDiff(input, t){ const a = [...norm(input)], b = [...norm(t)]; return [...new Set(b.filter((c, i) => c !== a[i] && /[^\x00-\x7f]/.test(c)))].join(' ') }
 
 function makeClient(){
