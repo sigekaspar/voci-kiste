@@ -85,6 +85,24 @@ const ART = (() => {
         D === H && D !== B && H !== F ? D : E, (D === H && D !== B && H !== F && E !== I) || (H === F && H !== D && F !== B && E !== G) ? H : E, H === F && H !== D && F !== B ? F : E];
       for(let i = 0; i < 9; i++) o[3 * r + (i / 3 | 0)][3 * c + i % 3] = v[i] }
     return o }
+  // Umrisse auf eine feine Linie verdünnen (wie bei Charlie): nur die äusserste Lage bleibt dunkel,
+  // die inneren Lagen bekommen die Farbe der Fläche daneben. Innere Details (Augen, Mund) bleiben.
+  function thin(g, f){
+    const h = g.length, w = g[0].length, D = Array.from({ length: h }, () => Array(w).fill(0)), q = [];
+    const N4 = [[1, 0], [-1, 0], [0, 1], [0, -1]], N8 = [...N4, [1, 1], [1, -1], [-1, 1], [-1, -1]];
+    const at = (r, c) => (r < 0 || c < 0 || r >= h || c >= w) ? '.' : g[r][c];
+    for(let r = 0; r < h; r++) for(let c = 0; c < w; c++) if(g[r][c] === 'k' && N4.some(([dr, dc]) => at(r + dr, c + dc) === '.')){ D[r][c] = 1; q.push([r, c]) }
+    for(let i = 0; i < q.length; i++){ const [r, c] = q[i]; if(D[r][c] >= f) continue;
+      for(const [dr, dc] of N4){ const rr = r + dr, cc = c + dc; if(at(rr, cc) === 'k' && !D[rr][cc]){ D[rr][cc] = D[r][c] + 1; q.push([rr, cc]) } } }
+    const fillOf = ch => ch !== 'k' && ch !== '.';
+    for(let d = f; d >= 2; d--) for(let r = 0; r < h; r++) for(let c = 0; c < w; c++){
+      if(D[r][c] !== d) continue;
+      let col = null; for(const [dr, dc] of N4){ const ch = at(r + dr, c + dc); if(fillOf(ch)){ col = ch; break } }
+      if(!col) for(const [dr, dc] of N8){ const ch = at(r + dr, c + dc); if(fillOf(ch)){ col = ch; break } }
+      if(col) g[r][c] = col;
+    }
+    return g;
+  }
   // Licht oben, Schatten unten an grösseren Farbflächen
   function shade(g){ const cnt = {}; g.forEach(r => r.forEach(ch => cnt[ch] = (cnt[ch] || 0) + 1));
     const big = ch => ch !== '.' && ch !== 'k' && cnt[ch] >= 24;
@@ -92,6 +110,7 @@ const ART = (() => {
       return [ch, (up === 'k' || up === '.') ? 1 : (dn === 'k' || dn === '.') ? 2 : (r < g.length - 2 && (g[r + 2][c] === 'k' || g[r + 2][c] === '.')) ? 3 : 0] })) }
   function fineOf(rows, f){ const key = rows.join('/'); let m = UPC.get(key); if(!m){ m = {}; UPC.set(key, m) } if(m[f]) return m[f];
     let g = rows.map(r => [...r]); if(f === 3) g = up3(g); else if(f > 1){ g = up2(g); if(f === 4) g = up2(g) }
+    if(f > 1) g = thin(g, f);
     return m[f] = shade(g) }
   const TONE = new Map();
   function tone(col, k){ const key = col + k; if(TONE.has(key)) return TONE.get(key);

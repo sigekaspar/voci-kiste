@@ -268,7 +268,7 @@ function renderMap(){
     ART.pip(c, 200, ART.GROUND - 15, mode === 'bakery' ? { ...G.look, hat: 'chef' } : G.look, 0);
     if(G.look.pet) ART.creature(c, G.look.pet, 182, ART.GROUND - 12, 1, ART.petStage(G.cards[G.look.pet] || 1)); c.restore();
     const bc = document.getElementById('bossico-' + u.id); if(bc){ const t = ART.THEMES[wi % ART.THEMES.length], bctx = ART.ctx(bc);
-      if(mode === 'arena') ART.draw(bctx, KING, { k: ART.INK, B: t.boss[0], G: '#b8c0cc', W: '#fff7c2', Y: '#f2c94c' }, 4, 2, true, 1);
+      if(mode === 'arena') ART.draw(bctx, KING, { k: ART.INK, B: t.boss[0], G: '#b8c0cc', W: '#fff7c2', Y: '#f2c94c', R: '#e86a6a' }, 4, 2, true, 1);
       else if(mode === 'bakery') ART.pip(bctx, 4, 1, { color: 'coal', hat: 'chef', face: 'mustache' }, 0);
       else ART.boss(bctx, 0, 0, t.boss[0], t.boss[1]) }
   });

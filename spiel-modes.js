@@ -20,7 +20,7 @@ function startMode(mode, u, wi, eb, li){
   if(mode === 'run') return li === 4 ? startBoss(u, wi, eb) : startRun(u, li, wi, eb);
   return mode === 'arena' ? startArena(u, wi, eb, li) : startBakery(u, wi, eb, li);
 }
-const KING = ['..k.k.k.k...', '..kYkYkYk...', '..kYYYYYk...', '..kkkkkkk...', '..kGGGGGk...', '..kGkWkGk...', '..kGGGGGk...', '.kBBBBBBBk..', 'kBkBBYBBkBk.', 'kGkBBBBBkGk.', '..kBk.kBk...', '..kkk.kkk...'];
+const KING = ['..k.k.k.k...', '..kYkYkYk...', '..kYYYYYk...', '..kYRYRYk...', '.kGGGGGGGk..', '.kGGkGkGGk..', '.kGGGGGGGk..', '.kBBBBBBBk..', 'kBkBBYBBkBk.', 'kGkBBBBBkGk.', '..kBk.kBk...', '..kkk.kkk...'];
 
 /* ---------- Grummel-Gegner (12×12) ---------- */
 const FOES = {
@@ -246,7 +246,7 @@ function startArena(u, wi, eb = 0, li = 0, go){
     }
     if(S.boss && !(S.bossWon && S.kingDead > .6)){ if(S.bossWon) S.kingDead += dt;
       const ky = ART.GROUND - 48 + Math.sin(S.t * 2) * 2, kx = S.kingX + (S.kingHurt > 0 ? (Math.random() - .5) * 4 : 0); S.kingHurt = Math.max(0, S.kingHurt - dt);
-      const pal = S.kingHurt > 0 ? { k: ART.INK, B: '#fff', G: '#fff', W: '#fff', Y: '#fff' } : { k: ART.INK, B: S.th.boss[0], G: '#b8c0cc', W: '#fff7c2', Y: '#f2c94c' };
+      const pal = S.kingHurt > 0 ? { k: ART.INK, B: '#fff', G: '#fff', W: '#fff', Y: '#fff', R: '#fff' } : { k: ART.INK, B: S.th.boss[0], G: '#b8c0cc', W: '#fff7c2', Y: '#f2c94c', R: '#e86a6a' };
       ART.draw(c, KING, pal, kx, ky, true, 4) }
     if(S.boss && S.bossWon) ART.chest(c, S.kingX + 8, ART.GROUND - 24, 2, true);
     if(G.look.pet) ART.creature(c, G.look.pet, S.home - 26, ART.GROUND - 24, 2, ART.petStage(G.cards[G.look.pet] || 1), S.t);
