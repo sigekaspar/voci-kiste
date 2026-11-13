@@ -4,8 +4,9 @@
   --paper:#fff6e9; --wood:#8a5a3c; --wood-d:#5e3b27; --ink:#3b2d3f; --muted:#7d6a72;
   --moss:#7fb069; --moss-d:#4f7d45; --honey:#f2b84b; --honey-d:#c98a24; --berry:#e86a6a; --berry-d:#b54646; --mint:#5fc4a0; --mint-d:#3a9479;
   --sky-b:#7ec4e6; --lav:#b9a3e3;
-  --pixel:"Pixelify Sans","Courier New",monospace;
-  --body:"Atkinson Hyperlegible","Segoe UI",system-ui,sans-serif;
+  --pixel:"Fredoka","Trebuchet MS",system-ui,sans-serif;
+  --word:"Andika","Atkinson Hyperlegible","Segoe UI",sans-serif;
+  --body:"Andika","Atkinson Hyperlegible","Segoe UI",system-ui,sans-serif;
   color-scheme:light;
 }
 *{box-sizing:border-box}
@@ -233,5 +234,16 @@ canvas{image-rendering:pixelated;image-rendering:crisp-edges}
 .race .hp i{display:block;height:100%;background:var(--mint);transition:width .3s}
 .race .hp.rival i{background:var(--berry)}
 @media (max-width:420px){ .modetabs button{flex-direction:column;font-size:.85rem;gap:2px} }
+
+
+/* Lesbarkeit: Wörter immer in Andika */
+.qword,.ans,.foetag,.cookie,.slot,.typebox input,.choices button,.msg,.dough{font-family:var(--word)}
+.qword{font-weight:700;letter-spacing:.01em}
+.ans,.foetag,.cookie,.slot{font-weight:700}
+.typebox input{font-size:1.5rem}
+.foetag{font-size:clamp(.9rem,2.8vw,1.15rem)}
+.cookie{font-size:1.6rem}
+.slot{font-size:1.5rem}
+.hud-me small,.prog,.combo,.perks{letter-spacing:.01em}
 
 @media (max-width:560px){ .hud{gap:5px} .hud-btn{font-size:.85rem;padding:3px 6px} .xp{width:64px} .mapgoals{grid-template-columns:1fr} .hud-me canvas{width:24px;height:30px} }
