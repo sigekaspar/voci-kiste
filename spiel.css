@@ -251,6 +251,8 @@ a.hud-btn{color:var(--ink);text-decoration:none}
 .slot{font-size:1.5rem}
 .hud-me small,.prog,.combo,.perks{letter-spacing:.01em}
 
+.scenehint{text-align:center;font-size:1rem}
+.canvasbox canvas{cursor:pointer}
 /* Breite Bildschirme: Spielfenster links, Frage und Antworten rechts */
 @media (min-width:900px) and (min-aspect-ratio:4/3){
   #app{max-width:1320px}

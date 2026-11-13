@@ -2,9 +2,9 @@
 // Nutzt die Hilfen aus spiel.js (G, sfx, particles, startLoop, overlay, leitner …)
 // Jeder Modus: 4 Levels + Boss pro Ebene
 const MODES = {
-  run: { name: 'Wort-Sprung', short: 'Sprung', levels: ['Französisch erkennen', 'Französisch erkennen', 'Französisch wählen', 'Französisch wählen'], boss: 'Wolken-Boss' },
+  run: { name: 'Wort-Sprung', short: 'Sprung', levels: ['Wörter erkennen', 'Hör-Sprung', 'Schreib-Sprung', 'Wackel-Brücken'], boss: 'Wolken-Boss' },
   arena: { name: 'Wort-Arena', short: 'Arena', speed: [14, 18, 23], q: [8, 10, 12], bossHP: [6, 8, 10],
-    levels: [{ dir: 'fr', champ: 0, sx: 1, label: 'Hören und hauen' }, { dir: 'de', champ: 0, sx: 1.05, label: 'Französisch finden' }, { dir: 'mix', champ: 1, sx: 1.15, label: 'Gemischtes Getümmel' }, { dir: 'mix', champ: 2, sx: 1.3, label: 'Nacht der Champions' }],
+    levels: [{ dir: 'fr', champ: 0, sx: 1, listen: true, label: 'Hör-Arena' }, { dir: 'de', champ: 0, sx: 1.05, fly: true, label: 'Flatter-Angriff' }, { dir: 'mix', champ: 1, sx: 1.1, n: 4, label: 'Vierer-Getümmel' }, { dir: 'mix', champ: 2, sx: 1.3, label: 'Nacht der Champions' }],
     boss: 'Grummel-König' },
   bakery: { name: 'Bäckerei', short: 'Bäckerei', baseTime: [45, 36, 28], extraEb: [0, 1, 2], bossWords: [6, 8, 10],
     levels: [{ q: 6, extra: 0, time: 1, label: 'Erste Brötchen' }, { q: 7, extra: 2, time: 1, label: 'Mit Extra-Buchstaben' }, { q: 7, extra: 1, time: 1.15, listen: true, label: 'Diktat-Backstube' }, { q: 8, extra: 3, time: .7, label: 'Express-Bestellung' }],
@@ -78,6 +78,7 @@ function endMode(S, quit){
   if(boss && stars){ G.totals.modeBoss = G.totals.modeBoss || {}; G.totals.modeBoss[S.mode] = (G.totals.modeBoss[S.mode] || 0) + 1 }
   log(S, 'game'); const nb = checkBadges(); save(); hud();
   if(quit) return renderMap();
+  const show = () => {
   if(stars) sfx.win(); else sfx.wrong();
   const M = MODES[S.mode];
   const title = boss ? (stars ? (S.mode === 'arena' ? 'Der Grummel-König ist besiegt!' : 'Backwettbewerb gewonnen!') : (S.mode === 'arena' ? 'Der König war stärker. Nochmals!' : 'Chef Grognon war schneller!'))
@@ -94,11 +95,14 @@ function endMode(S, quit){
     <div class="row"><button class="pbtn" id="ov-next">${stars && S.li < 4 ? (S.li === 3 ? 'Zum Boss' : 'Weiter') : 'Nochmals'}</button><button class="pbtn alt" id="ov-map">Zur Karte</button></div></div>`,
     { '#ov-next': () => { closeOverlay(); const go = () => afterDaily(S, next); chest ? openChest(S.eb ? 'eb' + S.eb : 'boss', go) : go() },
       '#ov-map': () => { closeOverlay(); const go = () => afterDaily(S, renderMap); chest ? openChest(S.eb ? 'eb' + S.eb : 'boss', go) : go() } });
-  const cake = $('#cake'); if(cake) drawCake(cake.getContext('2d'), S.correct);
+  const cake = $('#cake'); if(cake) drawCake(ART.ctx(cake), S.correct);
+  };
+  stars ? basketScene('out', S.mode, S.th, S.eb, show) : show();
 }
 
 /* ===================== Wort-Arena ===================== */
-function startArena(u, wi, eb = 0, li = 0){
+function startArena(u, wi, eb = 0, li = 0, go){
+  if(!go) return basketScene('in', 'arena', ART.THEMES[wi % ART.THEMES.length], eb, () => startArena(u, wi, eb, li, true));
   curView = 'game';
   const M = MODES.arena, boss = li === 4, L = boss ? { dir: 'mix', champ: 0, sx: 1.1 } : M.levels[li];
   const S = newModeState(u, wi, eb, 'arena', pickWords(u, boss ? M.bossHP[eb] + 8 : M.q[eb] + li));
@@ -111,8 +115,8 @@ function startArena(u, wi, eb = 0, li = 0){
     ${boss ? `<div class="bossbar"><span>Grummel-König${eb ? ' · ' + esc(S.E.name) : ''}</span><span class="hp"><i id="hp" style="width:100%"></i></span></div>` : ''}
     <div class="canvasbox arena" id="box"><canvas id="cv" width="${ART.W}" height="${ART.H}"></canvas><div id="tags"></div><span class="ebbadge">${esc(S.E.name)} · ${boss ? 'Boss' : 'Level ' + (li + 1)}</span></div>
     <div class="superbar"><span>Super</span><span class="hp"><i id="sup" style="width:0%"></i></span><button class="pbtn" id="superbtn" disabled>Super-Attacke!</button></div>
-    <p class="hint" style="text-align:center">Tippe den Gegner mit der richtigen Bedeutung an. Tasten 1, 2, 3 gehen auch.</p></section>`;
-  const cv = $('#cv'), c = cv.getContext('2d'), box = $('#box'), tags = $('#tags');
+    <p class="hint" style="text-align:center">Tippe den richtigen Gegner an. Die Zahlentasten gehen auch.</p></section>`;
+  const cv = $('#cv'), c = ART.ctx(cv), box = $('#box'), tags = $('#tags');
   heartsUI(S);
   $('#quit').onclick = () => confirmQuit(() => endMode(S, true));
   const jk = () => { const j = $('#joker'); j.hidden = !S.jokers; j.textContent = `Joker ×${S.jokers}` }; jk();
@@ -128,19 +132,21 @@ function startArena(u, wi, eb = 0, li = 0){
     const x = S.items[S.qi];
     const dir = L.dir === 'mix' ? (Math.random() < .5 ? 'de' : 'fr') : L.dir; // fr: französisch hören, deutsche Schilder
     const field = dir === 'fr' ? 'de' : 'fr', right = x.w[field];
-    const words = shuffle([right, ...distractors(S.u, x, field, 2)]);
+    const nF = L.n || 3, words = shuffle([right, ...distractors(S.u, x, field, nF - 1)]);
     const champ = !S.boss && S.qi >= S.items.length - L.champ;
-    const sides = S.boss ? [-1, -1, -1] : shuffle([-1, 1, Math.random() < .5 ? -1 : 1]);
+    const sides = S.boss ? words.map(() => -1) : shuffle(words.map((_, i) => i === 0 ? -1 : i === 1 ? 1 : Math.random() < .5 ? -1 : 1));
     const types = Object.keys(FOES);
     S.foes = words.map((w, i) => {
       const side = sides[i], isRight = w === right;
-      return { word: w, right: isRight, side, x: side < 0 ? -26 - i * (S.boss ? 30 : 22) : ART.W + 2 + i * 22, y: 0, type: types[(S.qi + i) % types.length], pal: FOEPAL[(S.qi * 3 + i) % FOEPAL.length],
+      return { word: w, right: isRight, side, x: side < 0 ? -26 - i * (S.boss ? 30 : 22) : ART.W + 2 + i * 22, y: 0, type: L.fly ? 'bat' : types[(S.qi + i) % types.length], fly: !!L.fly, pal: FOEPAL[(S.qi * 3 + i) % FOEPAL.length],
         scale: champ && isRight ? 3 : 2, champ: champ && isRight, hp: champ && isRight ? (Math.random() < .12 * skl('kraft') ? 1 : 2) : 1, state: 'walk', hurt: 0, vx: 0, vy: 0, rot: 0, bob: Math.random() * 6, id: i };
     });
     S.foes.sort((a, b) => a.x - b.x).forEach((f, i) => f.n = i + 1);
     S.dir = dir; S.cur = x;
     $('#prog').textContent = S.boss ? `König: ${S.kingHP} Leben` : `${S.qi + 1} / ${S.items.length}${champ ? ' · Champion!' : ''}`;
-    $('#q').innerHTML = dir === 'fr'
+    $('#q').innerHTML = dir === 'fr' && L.listen
+      ? `<button class="say big" id="say" aria-label="Nochmals anhören">${SPK2}</button><span id="qw">Hör gut zu!<small>Welcher Gegner trägt die Bedeutung von dem, was du hörst?</small></span>`
+      : dir === 'fr'
       ? `<button class="say" id="say" aria-label="Anhören">${SPK2}</button><span>${esc(x.w.fr)}<small>Welcher Gegner trägt die richtige Bedeutung?</small></span>`
       : `<span>${esc(x.w.de)}<small>Welcher Gegner trägt das französische Wort?</small></span>`;
     if(dir === 'fr'){ $('#say').onclick = () => speak(x.w.fr); setTimeout(() => speak(x.w.fr), 200) }
@@ -153,11 +159,12 @@ function startArena(u, wi, eb = 0, li = 0){
     activeTick(S);
     S.target = f; S.pstate = 'dash'; S.dt = 0; S.fromX = S.px; sfx.jump();
   }
-  keyFn = e => { if(curView !== 'game') return; const k = +e.key; if(k >= 1 && k <= 3){ e.preventDefault(); attack(S.foes.find(f => f.n === k)) } if(e.key === ' ' && !$('#superbtn').disabled){ e.preventDefault(); $('#superbtn').click() } if(e.key === 'Escape') $('#quit').click() };
+  keyFn = e => { if(curView !== 'game') return; const k = +e.key; if(k >= 1 && k <= 4){ e.preventDefault(); attack(S.foes.find(f => f.n === k)) } if(e.key === ' ' && !$('#superbtn').disabled){ e.preventDefault(); $('#superbtn').click() } if(e.key === 'Escape') $('#quit').click() };
   addEventListener('keydown', keyFn);
 
+  const reveal = () => { const qw = $('#qw'); if(qw) qw.innerHTML = `${esc(S.cur.w.fr)}<small>${esc(S.cur.w.de)}</small>` };
   function hit(f){
-    const x = S.cur;
+    const x = S.cur; reveal();
     if(f.right){
       f.hp--; f.hurt = .25; S.shake = .2; sfx.hit(); P.add(f.x + 12, f.y - 10, CONFETTI, 16, 90);
       if(f.hp > 0 && !S.superOn){ floatText(box, 'Nochmals!', 60, 30, '#ffe27a'); S.pstate = 'back'; S.dt = 0; return }
@@ -177,7 +184,7 @@ function startArena(u, wi, eb = 0, li = 0){
     }
   }
   function wrongAnswer(by){
-    const x = S.cur;
+    const x = S.cur; reveal();
     S.errors++; S.hearts--; heartsUI(S); loseCombo(S, box); leitner(x.key, false, false); G.totals.answers++;
     S.blink = 1; touchDay(); save();
     const r = S.foes.find(f => f.right);
@@ -230,12 +237,12 @@ function startArena(u, wi, eb = 0, li = 0){
     c.fillStyle = '#8a5a3c'; for(let x = 0; x < ART.W; x += 16){ c.fillRect(x, ART.GROUND - 18, 3, 18) } c.fillRect(0, ART.GROUND - 14, ART.W, 3);
     c.fillStyle = ART.INK; c.fillRect(0, ART.GROUND - 15, ART.W, 1);
     for(const f of S.foes){
-      const fx = f.x | 0, fy = (ART.GROUND - 12 * f.scale + f.y + (f.state === 'walk' ? -Math.abs(Math.sin(S.t * 8 + f.bob)) * 2 : 0)) | 0;
+      const fx = f.x | 0, fy = (ART.GROUND - 12 * f.scale + f.y + (f.state === 'walk' ? (f.fly ? -22 + Math.sin(S.t * 4 + f.bob) * 6 : -Math.abs(Math.sin(S.t * 8 + f.bob)) * 2) : 0)) | 0;
       if(f.state === 'fly'){ c.save(); c.translate(fx + 6 * f.scale, fy + 6 * f.scale); c.rotate(f.rot); drawFoe(c, f.type, f.pal, -6 * f.scale, -6 * f.scale, f.scale, f.x > S.home, true); c.restore() }
       else drawFoe(c, f.type, f.pal, fx, fy, f.scale, f.x > S.home, f.hurt > 0);
       f.sy = fy;
       if(f.state === 'walk'){ const nx = fx + 6 * f.scale - 4, ny = fy - 11; c.fillStyle = ART.INK; c.fillRect(nx, ny, 9, 9); c.fillStyle = '#fff6e9'; c.fillRect(nx + 1, ny + 1, 7, 7);
-        c.fillStyle = ART.INK; const D = { 1: ['.k.', 'kk.', '.k.', '.k.', 'kkk'], 2: ['kk.', '..k', '.k.', 'k..', 'kkk'], 3: ['kk.', '..k', '.k.', '..k', 'kk.'] }[f.n] || [];
+        c.fillStyle = ART.INK; const D = { 1: ['.k.', 'kk.', '.k.', '.k.', 'kkk'], 2: ['kk.', '..k', '.k.', 'k..', 'kkk'], 3: ['kk.', '..k', '.k.', '..k', 'kk.'], 4: ['k.k', 'k.k', 'kkk', '..k', '..k'] }[f.n] || [];
         D.forEach((r, yy) => [...r].forEach((ch, xx) => { if(ch === 'k') c.fillRect(nx + 3 + xx, ny + 2 + yy, 1, 1) })) }
     }
     if(S.boss && !(S.bossWon && S.kingDead > .6)){ if(S.bossWon) S.kingDead += dt;
@@ -253,7 +260,7 @@ function startArena(u, wi, eb = 0, li = 0){
     // Wortschilder über den Gegnern ausrichten
     tags.querySelectorAll('.foetag').forEach(b => { const f = S.foes.find(o => o.id === +b.dataset.f);
       if(!f || f.state === 'fly' || f.state === 'flee'){ b.style.display = 'none'; return }
-      b.style.display = ''; b.style.left = Math.min(78, Math.max(22, (f.x + 6 * f.scale) / ART.W * 100)) + '%'; b.style.top = (14 + (f.n - 1) * 17) + '%';
+      b.style.display = ''; b.style.left = Math.min(78, Math.max(22, (f.x + 6 * f.scale) / ART.W * 100)) + '%'; b.style.top = (S.foes.length > 3 ? 10 + (f.n - 1) * 13 : 14 + (f.n - 1) * 17) + '%';
       b.disabled = f.state !== 'walk' || S.pstate !== 'idle' });
   });
 }
@@ -275,7 +282,8 @@ function drawCake(c, n){
   const k = Math.min(8, Math.max(1, n));
   for(let i = 0; i < k; i++){ const x = 7 + i * 3.6 | 0; c.fillStyle = ['#7ec4e6', '#e86a6a', '#7fb069', '#b9a3e3'][i % 4]; c.fillRect(x, 8, 2, 5); c.fillStyle = '#f2b84b'; c.fillRect(x, 5, 2, 3); c.fillStyle = '#fff3b0'; c.fillRect(x, 5, 1, 1) }
 }
-function startBakery(u, wi, eb = 0, li = 0){
+function startBakery(u, wi, eb = 0, li = 0, go){
+  if(!go) return basketScene('in', 'bakery', ART.THEMES[wi % ART.THEMES.length], eb, () => startBakery(u, wi, eb, li, true));
   curView = 'game';
   const M = MODES.bakery, boss = li === 4, L = boss ? { q: M.bossWords[eb], extra: 1, time: 1 } : M.levels[li];
   let pool = wordsOf(u).filter(bakeable);
@@ -293,7 +301,7 @@ function startBakery(u, wi, eb = 0, li = 0){
     ${boss ? `<div class="race"><div><span>Du</span><span class="hp"><i id="me-bar" style="width:0%"></i></span></div><div><span>Chef Grognon</span><span class="hp rival"><i id="rival-bar" style="width:0%"></i></span></div></div>` : ''}
     <div class="canvasbox bake" id="box"><canvas id="cv" width="${ART.W}" height="${ART.H}"></canvas><span class="ebbadge">${esc(S.E.name)} · ${boss ? 'Boss' : 'Level ' + (li + 1)}</span></div>
     <div class="board bakeq"><div class="qword" id="q"></div><div class="charge" ${boss ? 'hidden' : ''}><i id="timer"></i></div><div class="dough" id="dough"></div><div class="tray" id="tray"></div><p class="msg" id="msg"></p></div></section>`;
-  const cv = $('#cv'), c = cv.getContext('2d'), box = $('#box');
+  const cv = $('#cv'), c = ART.ctx(cv), box = $('#box');
   heartsUI(S);
   $('#quit').onclick = () => confirmQuit(() => endMode(S, true));
   const jk = () => { const j = $('#joker'); j.hidden = !S.jokers; j.textContent = `Joker ×${S.jokers}` }; jk();

@@ -53,8 +53,10 @@ const COLOR_L = { mint: 2, sky: 2, lav: 3, honey: 3, cocoa: 4, rose: 4, sun: 5, 
 const HAT_P = [['flower', 500, 1], ['cap', 600, 2], ['flowercrown', 650, 2], ['beret', 750, 3], ['bunny', 850, 3], ['cat', 850, 4], ['chef', 950, 4], ['straw', 1000, 5], ['party', 1100, 5], ['headphones', 1250, 6], ['pirate', 1350, 7], ['helmet', 1450, 7], ['propeller', 1550, 8], ['viking', 1750, 9], ['tophat', 1950, 10], ['crown', 3000, 12], ['wizard', 3300, 14], ['halo', 4000, 18]];
 const FACE_P = [['glasses', 600, 3], ['sunglasses', 900, 5], ['hearts', 1100, 7], ['mustache', 1300, 9]];
 const TRAIL_P = [['leaves', 700, 3], ['bubbles', 850, 4], ['sparkle', 1000, 5], ['hearts', 1150, 6], ['snow', 1300, 8], ['stars', 1500, 10], ['fire', 1800, 12], ['rainbow', 2800, 16]];
+const LID_P = { swiss: [0, 1], blue: [600, 3], mint: [600, 3], dots: [700, 4], honey: [800, 5], stripes: [900, 6], hearts: [1000, 7], night: [1300, 9], gold: [2000, 12], rainbow: [2600, 15] };
 const SHOP = [
-  ...Object.entries(ART.COLORS).map(([k, c]) => ({ id: 'color_' + k, kind: 'color', key: k, name: c[2], price: COLOR_P[k] ?? 100, lvl: COLOR_L[k] || 1 })),
+  ...Object.entries(ART.LIDS).map(([k, l]) => ({ id: 'lid_' + k, kind: 'lid', key: k, name: l.name, price: (LID_P[k] || [800])[0], lvl: (LID_P[k] || [0, 5])[1] })),
+  ...Object.entries(ART.COLORS).map(([k, c]) => ({ id: 'color_' + k, kind: 'color', key: k, name: 'Pulli ' + c[2], price: COLOR_P[k] ?? 100, lvl: COLOR_L[k] || 1 })),
   ...HAT_P.map(([k, p, l]) => ({ id: 'hat_' + k, kind: 'hat', key: k, name: ART.HATS[k].name, price: p, lvl: l })),
   ...FACE_P.map(([k, p, l]) => ({ id: 'face_' + k, kind: 'face', key: k, name: ART.FACES[k].name, price: p, lvl: l })),
   ...TRAIL_P.map(([k, p, l]) => ({ id: 'trail_' + k, kind: 'trail', key: k, name: ART.TRAILS[k].name, price: p, lvl: l }))
@@ -73,8 +75,8 @@ const BADGES = [
   ['coll16', 'Grosser Sammler', '16 verschiedene Wesen', G => Object.keys(G.cards).length >= 16],
   ['collall', 'Alle gefunden!', 'Alle ' + ART.CREATURES.length + ' Wesen', G => Object.keys(G.cards).length >= ART.CREATURES.length],
   ['pet3', 'Wesen-Flüsterer', 'Ein Wesen auf Stufe 3', G => Object.values(G.cards).some(n => n >= 6)],
-  ['shop3', 'Modeprofi', '3 Sachen im Shop gekauft', G => Object.keys(G.owned).filter(k => k !== 'color_berry').length >= 3],
-  ['shop10', 'Stilikone', '10 Sachen im Shop gekauft', G => Object.keys(G.owned).filter(k => k !== 'color_berry').length >= 10],
+  ['shop3', 'Modeprofi', '3 Sachen im Shop gekauft', G => Object.keys(G.owned).filter(k => k !== 'color_berry' && k !== 'lid_swiss').length >= 3],
+  ['shop10', 'Stilikone', '10 Sachen im Shop gekauft', G => Object.keys(G.owned).filter(k => k !== 'color_berry' && k !== 'lid_swiss').length >= 10],
   ['skill1', 'Erste Kraft', 'Eine Kraft gekauft', G => Object.values(G.skills).some(l => l >= 1)],
   ['skill5', 'Voll aufgeladen', 'Eine Kraft auf Stufe 5', G => Object.values(G.skills).some(l => l >= 5)],
   ['berg', 'Bergsteiger', 'Die Ebene Berg erreicht', G => Object.keys(G.stars).some(k => parseKey(k).eb >= 1)],
@@ -121,7 +123,7 @@ const sfx = {
 function setMute(m){ muted = m; ls.set('vk-mute', m); $('#btn-mute').innerHTML = m ? '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#3b2d3f" stroke-width="2.4"><path d="M11 5 6 9H3v6h3l5 4z" fill="#3b2d3f"/><path d="M16 9l5 6M21 9l-5 6"/></svg>' : SPK2.replace('<svg ', '<svg width="22" height="22" '); $('#btn-mute').setAttribute('aria-label', m ? 'Ton an' : 'Ton aus') }
 
 /* ---------- Spielstand ---------- */
-function freshGame(){ return { coins: 0, xp: 0, stars: {}, skills: {}, ebSel: {}, plays: {}, owned: { color_berry: 1 }, look: { color: 'berry', hat: null, pet: null, face: null, trail: null }, cards: {}, badges: {}, daily: { day: '', secs: 0, done: false, count: 0 }, totals: { correct: 0, answers: 0, bestCombo: 0, bosses: 0 }, team: { week: '', claimed: false }, group: null } }
+function freshGame(){ return { coins: 0, xp: 0, stars: {}, skills: {}, ebSel: {}, plays: {}, owned: { color_berry: 1, lid_swiss: 1 }, look: { color: 'berry', lid: 'swiss', hat: null, pet: null, face: null, trail: null }, cards: {}, badges: {}, daily: { day: '', secs: 0, done: false, count: 0 }, totals: { correct: 0, answers: 0, bestCombo: 0, bosses: 0 }, team: { week: '', claimed: false }, group: null } }
 function mergeGame(g){ const f = freshGame(); g = g || {}; return { ...f, ...g, look: { ...f.look, ...(g.look || {}) }, daily: { ...f.daily, ...(g.daily || {}) }, totals: { ...f.totals, ...(g.totals || {}) }, team: { ...f.team, ...(g.team || {}) }, owned: { ...f.owned, ...(g.owned || {}) }, stars: g.stars || {}, cards: g.cards || {}, badges: g.badges || {}, skills: g.skills || {}, ebSel: g.ebSel || {}, plays: g.plays || {} } }
 const skl = id => (G && G.skills[id]) || 0;
 function migrateStars(g){ // alte Stationen (Arena = 5, Bäckerei = 6) werden zu Level 1 des Modus
@@ -210,8 +212,8 @@ async function loadTeam(){
 
 /* ---------- HUD ---------- */
 function avatarCanvas(cv, look, frame = 0){
-  const c = cv.getContext('2d'); c.clearRect(0, 0, cv.width, cv.height);
-  ART.pip(c, (cv.width - 12) / 2 | 0, cv.height - 15, look || G.look, frame);
+  const c = ART.ctx(cv), w = cv._lw, h = cv._lh; c.clearRect(0, 0, w, h);
+  ART.pip(c, (w - 12) / 2, h - 15, look || G.look, frame);
 }
 function hud(){
   $('#hud-name').textContent = kid.name;
@@ -255,12 +257,12 @@ function renderMap(){
   list.forEach((u, wi) => {
     const cv = document.getElementById('ban-' + u.id); if(!cv) return;
     const eb = curEb(u.id), mode = G.mode;
-    const c = cv.getContext('2d'); c.save(); c.translate(0, -108); ART.scene(c, ART.THEMES[wi % ART.THEMES.length], 2, wi * 140 + 30, { night: eb === 2 });
+    const c = ART.ctx(cv); c.save(); c.translate(0, -108); ART.scene(c, ART.THEMES[wi % ART.THEMES.length], 2, wi * 140 + 30, { night: eb === 2 });
     if(mode === 'arena'){ drawFoe(c, 'slime', FOEPAL[wi % FOEPAL.length], 230, ART.GROUND - 12, 1, true); drawFoe(c, 'knight', FOEPAL[(wi + 2) % FOEPAL.length], 252, ART.GROUND - 12, 1, true) }
     if(mode === 'bakery'){ c.fillStyle = ART.INK; c.fillRect(226, ART.GROUND - 22, 28, 22); c.fillStyle = '#c96a4a'; c.fillRect(227, ART.GROUND - 21, 26, 21); c.fillStyle = '#ffd27a'; c.fillRect(232, ART.GROUND - 12, 16, 8) }
     ART.pip(c, 200, ART.GROUND - 15, mode === 'bakery' ? { ...G.look, hat: 'chef' } : G.look, 0);
     if(G.look.pet) ART.creature(c, G.look.pet, 182, ART.GROUND - 12, 1, ART.petStage(G.cards[G.look.pet] || 1)); c.restore();
-    const bc = document.getElementById('bossico-' + u.id); if(bc){ const t = ART.THEMES[wi % ART.THEMES.length], bctx = bc.getContext('2d');
+    const bc = document.getElementById('bossico-' + u.id); if(bc){ const t = ART.THEMES[wi % ART.THEMES.length], bctx = ART.ctx(bc);
       if(mode === 'arena') ART.draw(bctx, KING, { k: ART.INK, B: t.boss[0], G: '#b8c0cc', W: '#fff7c2', Y: '#f2c94c' }, 4, 2, true, 1);
       else if(mode === 'bakery') ART.pip(bctx, 4, 1, { color: 'coal', hat: 'chef', face: 'mustache' }, 0);
       else ART.boss(bctx, 0, 0, t.boss[0], t.boss[1]) }
@@ -270,7 +272,7 @@ function renderMap(){
     if(!ebOpenM(uid, G.mode, eb)){ sfx.wrong(); toast('Besiege zuerst den ' + MODES[G.mode].boss + ' der Ebene ' + EBENEN[eb - 1].name + '!'); return }
     sfx.click(); G.ebSel[G.mode + ':' + uid] = eb; save(); renderMap();
   });
-  document.querySelectorAll('[data-mico]').forEach(cv => { const c = cv.getContext('2d');
+  document.querySelectorAll('[data-mico]').forEach(cv => { const c = ART.ctx(cv);
     if(cv.dataset.mico === 'arena'){ drawFoe(c, 'slime', { B: '#8fd46b', D: '#5a9e45' }, 12, 11, 1, true); ART.pip(c, 0, 9, G.look, 2) }
     else if(cv.dataset.mico === 'bakery'){ ART.pip(c, 2, 9, { ...G.look, hat: 'chef' }, 0); c.fillStyle = ART.INK; c.fillRect(14, 17, 10, 6); c.fillStyle = '#f2b84b'; c.fillRect(15, 18, 8, 4) }
     else { c.fillStyle = ART.INK; c.fillRect(10, 18, 14, 4); c.fillStyle = '#5fc4a0'; c.fillRect(11, 18, 12, 2); ART.pip(c, 4, 3, G.look, 1) } });
@@ -325,6 +327,21 @@ function pickWords(u, n){
   while(out.length < n) out.push(sorted[out.length % sorted.length]);
   return shuffle(out);
 }
+// Falsch geschriebene Varianten eines französischen Wortes (für den Schreib-Sprung)
+function misspell(word, k = 2){
+  const tail = (word.match(/\s*\([^)]*\)\s*$/) || [''])[0], core = word.slice(0, word.length - tail.length);
+  const m = core.match(/^((?:le|la|les|un|une|des)\s+|l['’])?(.*)$/i), art = m[1] || '', w = m[2];
+  const out = new Set(), add = v => { v = v + tail; if(v && v !== word && v.replace(/\s/g, '').length >= 2) out.add(v) };
+  const ACC = { 'é': ['e', 'è'], 'è': ['é', 'e'], 'ê': ['e', 'è'], 'à': ['a'], 'â': ['a'], 'ç': ['c', 's'], 'ô': ['o'], 'î': ['i'], 'û': ['u'], 'ù': ['u'], 'ë': ['e'], 'ï': ['i'] };
+  [...w].forEach((ch, i) => { if(ACC[ch]) ACC[ch].forEach(r => add(art + w.slice(0, i) + r + w.slice(i + 1))) });
+  if(!/[éèêàâçôîûùëï]/.test(w)){ const i = w.search(/e(?=[^aeiouéè\s]|$)/); if(i > 0 && i < w.length - 1) add(art + w.slice(0, i) + 'é' + w.slice(i + 1)) }
+  [['eau', 'o'], ['au', 'o'], ['ou', 'u'], ['ai', 'é'], ['qu', 'k'], ['ch', 'sch'], ['gn', 'nj'], ['ph', 'f'], ['oi', 'oa'], ['eu', 'ö'], ['ill', 'ij'], ['on', 'ong'], ['an', 'en'], ['en', 'an'], ['s', 'ss'], ['ss', 's'], ['tt', 't'], ['ll', 'l'], ['nn', 'n'], ['mm', 'm'], ['rr', 'r'], ['pp', 'p']]
+    .forEach(([a, b]) => { const i = w.indexOf(a); if(i >= 0) add(art + w.slice(0, i) + b + w.slice(i + a.length)) });
+  for(let i = 1; i < w.length - 2; i++){ if(/[a-z]/.test(w[i]) && /[a-z]/.test(w[i + 1]) && w[i] !== w[i + 1]){ add(art + w.slice(0, i) + w[i + 1] + w[i] + w.slice(i + 2)); break } }
+  if(/[estx]$/.test(w) && w.length > 4) add(art + w.slice(0, -1)); else if(w.length > 2 && !/[.!?]$/.test(w)) add(art + w + 'e');
+  const ARTS = { 'le ': 'la ', 'la ': 'le ', 'un ': 'une ', 'une ': 'un ' }; if(ARTS[art.toLowerCase()]) add(ARTS[art.toLowerCase()] + w);
+  return shuffle([...out]).slice(0, k);
+}
 function distractors(u, x, field, k = 2){
   const pool = [...wordsOf(u), ...units.filter(o => o !== u && o.level === u.level).flatMap(wordsOf)].filter(o => o.w[field] !== x.w[field]);
   const same = pool.filter(o => o.w.fr.split(' ')[0] === x.w.fr.split(' ')[0]); // gleicher Artikel = schwieriger
@@ -335,7 +352,8 @@ function distractors(u, x, field, k = 2){
 
 /* ---------- Spiel-Schleife ---------- */
 let raf = null, loopFn = null, keyFn = null;
-function startLoop(fn){ if(raf) cancelAnimationFrame(raf); loopFn = fn; let last = performance.now(); const step = now => { const dt = Math.max(0, Math.min(.05, (now - last) / 1000)); last = now; loopFn(dt); raf = requestAnimationFrame(step) }; raf = requestAnimationFrame(step) }
+let loopId = 0;
+function startLoop(fn){ if(raf) cancelAnimationFrame(raf); loopFn = fn; const my = ++loopId; let last = performance.now(); const step = now => { if(my !== loopId || loopFn !== fn) return; const dt = Math.max(0, Math.min(.05, (now - last) / 1000)); last = now; fn(dt); if(my === loopId && loopFn === fn) raf = requestAnimationFrame(step) }; raf = requestAnimationFrame(step) }
 function stopLoop(){ if(raf) cancelAnimationFrame(raf); raf = null; loopFn = null; if(keyFn){ removeEventListener('keydown', keyFn); keyFn = null } }
 function particles(){ const P = []; return { add(x, y, col, n = 8, sp = 60){ for(let i = 0; i < n; i++){ const a = Math.random() * Math.PI * 2, v = sp * (.4 + Math.random()); P.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 30, life: .8 + Math.random() * .4, col: Array.isArray(col) ? col[i % col.length] : col }) } }, step(c, dt){ for(let i = P.length - 1; i >= 0; i--){ const p = P[i]; p.life -= dt; if(p.life <= 0){ P.splice(i, 1); continue } p.vy += 160 * dt; p.x += p.vx * dt; p.y += p.vy * dt; c.fillStyle = p.col; c.fillRect(p.x | 0, p.y | 0, 2, 2) } } } }
 const CONFETTI = ['#e86a6a', '#5fc4a0', '#f2b84b', '#7ec4e6', '#b9a3e3', '#fff'];
@@ -343,14 +361,17 @@ function activeTick(S){ const now = Date.now(); const d = Math.min(CFG.idleCap, 
   if(!G.daily.done && G.daily.secs >= CFG.dailySecs){ G.daily.done = true; G.daily.count = (G.daily.count || 0) + 1; S.dailyNow = true } }
 
 /* ---------- Wort-Sprung ---------- */
-function startRun(u, li, wi, eb = 0){
+function startRun(u, li, wi, eb = 0, go){
+  if(!go) return basketScene('in', 'run', ART.THEMES[wi % ART.THEMES.length], eb, () => startRun(u, li, wi, eb, true));
   curView = 'game';
   const E = EBENEN[eb], th = ART.THEMES[wi % ART.THEMES.length];
-  const frde = eb === 0 ? li < 2 : eb === 1 ? li % 2 === 0 : null; // Meister: gemischt
+  // Vier Spielarten pro Welt: Wörter erkennen, Hör-Sprung, Schreib-Sprung, Wackel-Brücken
+  const variant = ['classic', 'listen', 'spell', 'wobble'][li] || 'classic';
+  const frde = variant === 'listen' ? true : variant === 'spell' ? false : variant === 'wobble' ? null : eb === 1 ? false : eb === 2 ? null : true;
   const items = pickWords(u, E.q);
   preloadSpeech(items.map(x => x.w.fr));
   const maxH = Math.max(1, CFG.hearts + E.hearts + [0, 1, 1, 2, 2, 3][skl('herz')]);
-  const S = { u, li, wi, eb, E, th, frdeMode: frde, frde: frde ?? true, items, qi: -1, hearts: maxH, maxH, shields: [0, 1, 1, 2, 2, 3][skl('schild')], jokers: [0, 1, 1, 2, 2, 3][skl('joker')], trail: [], tt: 0, combo: 0, errors: 0, correct: 0, coins: 0, secs: 0, lastAct: Date.now(), started: new Date().toISOString(),
+  const S = { u, li, wi, eb, E, th, variant, frdeMode: frde, frde: frde ?? true, items, qi: -1, hearts: maxH, maxH, shields: [0, 1, 1, 2, 2, 3][skl('schild')], jokers: [0, 1, 1, 2, 2, 3][skl('joker')], trail: [], tt: 0, combo: 0, errors: 0, correct: 0, coins: 0, secs: 0, lastAct: Date.now(), started: new Date().toISOString(),
     phase: 'run', t: 0, off: 0, cx: 999, py: 0, vy: 0, choice: null, opts: [], ansSlot: -1, crumble: 0, frame: 0, ft: 0, blink: 0, pDropY: 0 };
   rfOf(S, sKey(u.id, eb, li));
   const P = particles();
@@ -359,7 +380,7 @@ function startRun(u, li, wi, eb = 0){
     <div class="board qword" id="q"></div>
     <div class="canvasbox" id="box"><canvas id="cv" width="${ART.W}" height="${ART.H}"></canvas><span class="ebbadge">${esc(E.name)}</span></div>
     <div class="answers" id="ans"></div></section>`;
-  const cv = $('#cv'), c = cv.getContext('2d'), box = $('#box');
+  const cv = $('#cv'), c = ART.ctx(cv), box = $('#box');
   $('#quit').onclick = () => confirmQuit(() => { endRun(S, true) });
   const hearts = () => { $('#hearts').innerHTML = Array.from({ length: S.maxH }, (_, i) => `<i class="${i < S.hearts ? '' : 'off'}"></i>`).join('') };
   const perks = () => { $('#perks').textContent = S.shields ? `Schild ×${S.shields}` : ''; const j = $('#joker'); j.hidden = !S.jokers; j.textContent = `Joker ×${S.jokers}` };
@@ -373,7 +394,7 @@ function startRun(u, li, wi, eb = 0){
   const mult = () => Math.min(CFG.comboMax, 1 + Math.floor(S.combo / CFG.comboStep));
   const comboUI = () => { const m = mult(); const el = $('#combo'); el.textContent = S.combo >= 2 ? `Kombo ${S.combo} · ×${m}` : ''; el.classList.remove('big'); void el.offsetWidth; if(S.combo >= 2) el.classList.add('big') };
   hearts();
-  const PLAT = [ART.GROUND - 100, ART.GROUND - 66, ART.GROUND - 32], PW = 56, PX = 56, LAND = PX + 12 - PW / 2 | 0, JUMP = .5;
+  const PLAT0 = [ART.GROUND - 100, ART.GROUND - 66, ART.GROUND - 32], PLAT = PLAT0.slice(), PW = 56, PX = 56, LAND = PX + 12 - PW / 2 | 0, JUMP = .5;
 
   function nextQ(){
     S.qi++; S.choice = null; S.crumble = 0;
@@ -381,10 +402,16 @@ function startRun(u, li, wi, eb = 0){
     if(S.frdeMode === null) S.frde = Math.random() < .5;
     S.gone = []; S.jokered = false;
     const x = S.items[S.qi], field = S.frde ? 'de' : 'fr';
-    const right = x.w[field], opts = shuffle([right, ...distractors(S.u, x, field)]);
+    const right = x.w[field]; let wrong = S.variant === 'spell' ? misspell(right, 2) : [];
+    if(wrong.length < 2) wrong = wrong.concat(distractors(S.u, x, field).filter(o => !wrong.includes(o))).slice(0, 2);
+    const opts = shuffle([right, ...wrong]);
     S.opts = opts; S.ansSlot = opts.indexOf(right); S.cx = ART.W + 20; S.phase = 'approach';
     $('#prog').textContent = `${S.qi + 1} / ${S.items.length}`;
-    $('#q').innerHTML = S.frde
+    $('#q').innerHTML = S.variant === 'listen'
+      ? `<button class="say big" id="say" aria-label="Nochmals anhören">${SPK2}</button><span id="qw">Hör gut zu!<small>Was hast du gehört? Spring auf die richtige Bedeutung!</small></span>`
+      : S.variant === 'spell'
+      ? `<span>${esc(x.w.de)}<small>Welches Wort ist richtig geschrieben?</small></span>`
+      : S.frde
       ? `<button class="say" id="say" aria-label="Anhören">${SPK2}</button><span>${esc(x.w.fr)}<small>Was heisst das? Spring auf das richtige Wort!</small></span>`
       : `<span>${esc(x.w.de)}<small>Wie heisst das auf Französisch?</small></span>`;
     if(S.frde){ $('#say').onclick = () => speak(x.w.fr); setTimeout(() => speak(x.w.fr), 200) }
@@ -401,6 +428,7 @@ function startRun(u, li, wi, eb = 0){
 
   function judge(){
     const x = S.items[S.qi], ok = S.choice === S.ansSlot;
+    if(S.variant === 'listen'){ const qw = $('#qw'); if(qw) qw.innerHTML = `${esc(x.w.fr)}<small>${esc(x.w.de)}</small>` }
     document.querySelectorAll('.ans').forEach((b, j) => { if(j === S.ansSlot) b.classList.add('right'); else if(j === S.choice) b.classList.add('wrong') });
     leitner(x.key, ok, false);
     G.totals.answers++;
@@ -430,6 +458,8 @@ function startRun(u, li, wi, eb = 0){
     if(S.cx < 900) S.cx -= sp * dt;
     const jumpAt = LAND + v * JUMP;
     if(S.phase === 'run' && S.t > .6) nextQ();
+    // Wackel-Brücken: die Plattformen schwanken, bis Charlie springt
+    if(S.variant === 'wobble' && (S.phase === 'approach' || S.phase === 'rush')) PLAT0.forEach((y, i) => PLAT[i] = Math.round(y + Math.sin(S.t * 2.6 + i * 1.3) * 6));
     if((S.phase === 'approach' || S.phase === 'rush') && S.cx <= jumpAt){
       if(S.choice === null){ // Zeit abgelaufen: Pip läuft weiter und fällt ins Wasser
         S.phase = 'fall'; S.vy = -40; S.timeout = true; activeTick(S);
@@ -490,6 +520,7 @@ function endRun(S, quit){
   const nb = checkBadges();
   save(); hud();
   if(quit) return renderMap();
+  const show = () => {
   if(stars) sfx.win(); else sfx.wrong();
   const title = stars === 3 ? 'Perfekt!' : stars === 2 ? 'Super gemacht!' : stars === 1 ? 'Geschafft!' : 'Fast!';
   overlay(`<div class="board dialog">
@@ -503,6 +534,8 @@ function endRun(S, quit){
     { '#ov-next': () => { closeOverlay(); afterDaily(S, () => {
         if(!stars) startRun(S.u, S.li, S.wi, S.eb); else if(S.li < 3) startRun(S.u, S.li + 1, S.wi, S.eb); else startBoss(S.u, S.wi, S.eb) }) },
       '#ov-map': () => { closeOverlay(); afterDaily(S, renderMap) } });
+  };
+  stars ? basketScene('out', 'run', S.th, S.eb, show) : show();
 }
 function afterDaily(S, then){
   if(S.dailyNow){ S.dailyNow = false; sfx.level(); overlay(`<div class="board dialog"><h2>Tagesziel geschafft!</h2><p>${CFG.dailySecs / 60} Minuten geübt. Dafür gibt es eine Truhe!</p><button class="pbtn" id="ov-ok">Truhe öffnen</button></div>`, { '#ov-ok': () => { closeOverlay(); openChest('daily', then) } }) }
@@ -514,8 +547,58 @@ function log(S, kind){
     .then(({ error }) => { if(error) console.error(error) });
 }
 
+/* ---------- Charlie und sein Korb: Szene am Anfang und am Ende eines Levels ---------- */
+function kitchenBg(c){
+  c.fillStyle = '#f6e3c8'; c.fillRect(0, 0, ART.W, ART.H);
+  c.fillStyle = '#ead2b0'; for(let y = 0; y < 110; y += 12) for(let x = (y / 12) % 2 * 12; x < ART.W; x += 24) c.fillRect(x, y, 12, 12);
+  c.fillStyle = '#8a5a3c'; c.fillRect(0, 110, ART.W, 70); c.fillStyle = '#b07a52'; for(let x = 0; x < ART.W; x += 20) c.fillRect(x + 2, 114, 14, 2);
+  c.fillStyle = ART.INK; c.fillRect(0, 109, ART.W, 1);
+  c.fillStyle = ART.INK; c.fillRect(216, 30, 82, 80); c.fillStyle = '#c96a4a'; c.fillRect(218, 32, 78, 78);
+  c.fillStyle = ART.INK; c.fillRect(234, 64, 46, 34); c.fillStyle = '#e8925a'; c.fillRect(236, 66, 42, 30);
+}
+function basketScene(kind, mode, th, eb, then){
+  stopLoop(); curView = 'game';
+  const bake = mode === 'bakery', gy = bake ? 110 : ART.GROUND, look = bake ? { ...G.look, hat: 'chef' } : G.look;
+  const night = eb === 2 || mode === 'boss';
+  if(kind === 'in'){
+    $('#screen').innerHTML = `<section class="stage"><div class="qbar"><span class="prog">Charlie macht sich bereit …</span><button class="hud-btn" id="skip">Los geht's ›</button></div>
+      <div class="canvasbox" id="box"><canvas id="cv" width="${ART.W}" height="${ART.H}"></canvas></div><div class="board scenehint"><b>Tippe aufs Bild,</b> um gleich loszulegen.</div></section>`;
+  }
+  const cv = $('#cv'); if(!cv){ then(); return }
+  const c = ART.ctx(cv); let t = 0, done = false; const S0 = {};
+  const tx = { run: 56, boss: 54, arena: 148, bakery: 120 }[mode] || 56, bx = kind === 'in' ? tx - 50 : tx + 70, by = gy - 18 + 2; // Korb steht auf dem Boden
+  const end = () => { if(done) return; done = true; stopLoop(); then() };
+  const skip = () => { sfx.click(); end() };
+  cv.onclick = skip; const sk = $('#skip'); if(sk) sk.onclick = skip;
+  startLoop(dt => {
+    t += dt;
+    if(bake) kitchenBg(c); else ART.scene(c, th, t, kind === 'in' ? 0 : 60 + t * 0, { night });
+    let open = 0, cx = bx + 2, cy = gy - 28, clip, frame = 0;
+    if(kind === 'in'){
+      if(t < .5){ open = 0; cy = gy; clip = by + 6 }                       // Korb zu, Charlie drin
+      else if(t < 1){ open = (t - .5) / .5; cy = gy; clip = by + 6 }       // Deckel geht auf
+      else if(t < 1.7){ open = 1; const k = (t - 1) / .7; cy = gy - 4 - k * 30; clip = by + 6 } // klettert heraus
+      else if(t < 2.2){ open = 1 - (t - 1.7) / .5; const k = (t - 1.7) / .5; cx = bx + 2 + k * 34; cy = gy - 34 - Math.sin(k * Math.PI) * 14 + k * 6; frame = 1 }
+      else { open = 0; const k = Math.min(1, (t - 2.2) / .6); cx = bx + 36 + k * (tx - bx - 36); cy = gy - 28; frame = Math.floor(t * 8) % 3 }
+      if(t > 2.9) return end();
+    } else {
+      if(t < 1){ const k = t; cx = tx + k * (bx - tx - 26); cy = gy - 28; frame = Math.floor(t * 8) % 3; open = Math.min(1, t * 2) }
+      else if(t < 1.5){ const k = (t - 1) / .5; cx = bx - 26 + k * 28; cy = gy - 28 - Math.sin(k * Math.PI) * 18; frame = 1; open = 1 }
+      else if(t < 2){ open = 1; const k = (t - 1.5) / .5; cx = bx + 2; cy = gy - 28 + k * 30; clip = by + 6 }
+      else { open = Math.max(0, 1 - (t - 2) / .35); cx = bx + 2; cy = gy; clip = by + 6; if(!S0.sfx){ S0.sfx = 1; sfx.coin() } }
+      if(t > 2.7) return end();
+    }
+    if(G.look.pet && kind === 'in' && t > 2.2) ART.creature(c, G.look.pet, cx - 26, gy - 24, 2, ART.petStage(G.cards[G.look.pet] || 1), t);
+    if(cy < gy) ART.pip(c, cx, cy, look, frame, 2, clip !== undefined ? { clip } : {});
+    ART.basket(c, bx, by, G.look.lid || 'swiss', open, 2);
+    if(kind === 'out' && t > 2.1){ c.fillStyle = '#ffe27a'; for(let i = 0; i < 5; i++){ const a = i / 5 * Math.PI * 2 + t * 3; c.fillRect(bx + 14 + Math.cos(a) * 20, by - 4 + Math.sin(a) * 10, 2, 2) } }
+  });
+  if(kind === 'in') setTimeout(() => { if(!done) sfx.jump() }, 1000);
+}
+
 /* ---------- Boss ---------- */
-function startBoss(u, wi, eb = 0){
+function startBoss(u, wi, eb = 0, go){
+  if(!go) return basketScene('in', 'boss', ART.THEMES[wi % ART.THEMES.length], eb, () => startBoss(u, wi, eb, true));
   curView = 'game';
   const E = EBENEN[eb], th = ART.THEMES[wi % ART.THEMES.length];
   const items = pickWords(u, E.bossHP + 6);
@@ -536,7 +619,7 @@ function startBoss(u, wi, eb = 0){
       <div class="accents">${ACC.map(a => `<button type="button" data-c="${esc(a)}">${esc(a)}</button>`).join('')}</div>
       <p class="msg" id="msg">Schreib das Wort auf Französisch. Jedes richtige Wort trifft ${esc(th.bossName)}!</p>
     </div></section>`;
-  const cv = $('#cv'), c = cv.getContext('2d'), box = $('#box'), inp = $('#inp');
+  const cv = $('#cv'), c = ART.ctx(cv), box = $('#box'), inp = $('#inp');
   const hearts = () => { $('#hearts').innerHTML = Array.from({ length: S.maxH }, (_, i) => `<i class="${i < S.hearts ? '' : 'off'}"></i>`).join('') };
   hearts();
   const jk = () => { const j = $('#joker'); j.hidden = !S.jokers; j.textContent = `Joker ×${S.jokers}` }; jk();
@@ -658,7 +741,7 @@ function openChest(kind, then){
       <p>${isNew ? 'Neu in deinem Album!' : grew ? `${esc(pick[1])} hat sich weiterentwickelt: Stufe ${stg}!` : `Hast du schon (${G.cards[pick[0]]}×). Dafür gibt es ${CFG.dupCoins} Münzen. Ab 3× und 6× entwickelt es sich.`}</p>
       ${nb.length ? `<p><b>Neues Abzeichen:</b> ${nb.map(b => esc(b[1])).join(', ')}</p>` : ''}
       <div class="row"><button class="pbtn" id="ov-ok">Super!</button>${isNew ? '<button class="pbtn alt" id="ov-pet">Als Begleiter</button>' : ''}</div></div></div>`, {});
-  const cv = $('#ch'), c = cv.getContext('2d'); let opened = false, t = 0, id = 0;
+  const cv = $('#ch'), c = ART.ctx(cv); let opened = false, t = 0, id = 0;
   const drawC = () => { c.clearRect(0, 0, 32, 32); if(!opened){ const s = Math.sin(t * 20) * (t % 1.2 > .9 ? 1 : 0); ART.chest(c, 8 + s, 12, 1, kind !== 'daily' && kind !== 'wood') } else ART.creature(c, pick[0], 10, 10 - Math.max(0, 6 - t * 20), 1, stg, t); t += .016; id = requestAnimationFrame(drawC) };
   drawC();
   const openIt = () => { if(opened) return; opened = true; t = 0; sfx.chest(); $('#ch-hint').hidden = true; $('#ch-res').hidden = false;
@@ -670,7 +753,7 @@ function openChest(kind, then){
 /* ---------- Abzeichen ---------- */
 function checkBadges(){ const nb = BADGES.filter(b => !G.badges[b[0]] && b[3](G)); nb.forEach(b => G.badges[b[0]] = today()); return nb }
 function badgeIcon(cv, i, on){
-  const c = cv.getContext('2d'); c.clearRect(0, 0, 28, 28);
+  const c = ART.ctx(cv); c.clearRect(0, 0, 28, 28);
   const cols = ['#f2b84b', '#e86a6a', '#5fc4a0', '#7ec4e6', '#b9a3e3'];
   c.fillStyle = ART.INK; c.fillRect(6, 2, 16, 3); c.fillRect(3, 5, 22, 16); c.fillRect(6, 21, 16, 3); c.fillRect(10, 24, 8, 3);
   c.fillStyle = on ? cols[i % cols.length] : '#d9c9b2'; c.fillRect(7, 3, 14, 2); c.fillRect(4, 6, 20, 14); c.fillRect(7, 21, 14, 2); c.fillRect(11, 24, 6, 2);
@@ -687,7 +770,7 @@ function renderBadges(){
 
 /* ---------- Shop ---------- */
 let shopTab = 'skill';
-const SHOPTABS = [['skill', 'Kräfte'], ['hat', 'Mützen'], ['face', 'Gesicht'], ['color', 'Farben'], ['trail', 'Spuren'], ['chest', 'Truhen']];
+const SHOPTABS = [['skill', 'Kräfte'], ['hat', 'Mützen'], ['face', 'Gesicht'], ['color', 'Pulli'], ['lid', 'Korb'], ['trail', 'Spuren'], ['chest', 'Truhen']];
 function renderShop(){
   curView = 'shop';
   const L = lvlOf(G.xp).lvl;
@@ -708,17 +791,18 @@ function renderShop(){
     const worn = s => G.look[s.kind] === s.key;
     body = `<section class="grid">${items.map(s => { const own = !!G.owned[s.id], lock = !own && L < s.lvl;
       return `<div class="item ${worn(s) ? 'worn' : ''} ${lock ? 'lvl-lock' : ''}"><canvas width="${s.kind === 'trail' ? 24 : 16}" height="20" data-s="${s.id}"></canvas><b>${esc(s.name)}</b>
-        ${own ? `<button class="${worn(s) ? 'alt' : ''}" data-wear="${s.id}">${worn(s) ? (s.kind === 'color' ? 'Trägst du' : 'Ablegen') : 'Anziehen'}</button>`
+        ${own ? `<button class="${worn(s) ? 'alt' : ''}" data-wear="${s.id}">${worn(s) ? (s.kind === 'color' || s.kind === 'lid' ? (s.kind === 'lid' ? 'Hast du' : 'Trägst du') : 'Ablegen') : 'Anziehen'}</button>`
           : lock ? `<small>ab Level ${s.lvl}</small>` : `<span class="price"><i class="coin"></i>${s.price}</span><button data-buy="${s.id}" ${G.coins < s.price ? 'disabled' : ''}>Kaufen</button>`}</div>` }).join('')}</section>`;
   }
   $('#screen').innerHTML = head + body;
   document.querySelectorAll('[data-t]').forEach(b => b.onclick = () => { sfx.click(); shopTab = b.dataset.t; renderShop() });
   document.querySelectorAll('[data-s]').forEach(cv => { const s = SHOP.find(x => x.id === cv.dataset.s);
-    if(s.kind === 'trail'){ const c = cv.getContext('2d'), tr = ART.TRAILS[s.key]; for(let i = 0; i < 7; i++) ART.trailDot(c, tr, 1 + i * 3, 4 + (i * 7) % 12, tr.cols[i % tr.cols.length]); ART.pip(c, 12, 5, { ...G.look }, 0) }
+    if(s.kind === 'trail'){ const c = ART.ctx(cv), tr = ART.TRAILS[s.key]; for(let i = 0; i < 7; i++) ART.trailDot(c, tr, 1 + i * 3, 4 + (i * 7) % 12, tr.cols[i % tr.cols.length]); ART.pip(c, 12, 5, { ...G.look }, 0) }
+    else if(s.kind === 'lid'){ const c = ART.ctx(cv); ART.basket(c, 1, 8, s.key, 0, 1) }
     else avatarCanvas(cv, { ...G.look, [s.kind]: s.key }) });
-  document.querySelectorAll('[data-chest]').forEach(cv => ART.chest(cv.getContext('2d'), 2, 2, 1, cv.dataset.chest === 'gold'));
+  document.querySelectorAll('[data-chest]').forEach(cv => ART.chest(ART.ctx(cv), 2, 2, 1, cv.dataset.chest === 'gold'));
   document.querySelectorAll('[data-buy]').forEach(b => b.onclick = () => { const s = SHOP.find(x => x.id === b.dataset.buy); if(G.coins < s.price) return; G.coins -= s.price; G.owned[s.id] = 1; G.look[s.kind] = s.key; sfx.buy(); const nb = checkBadges(); if(nb.length) toast('Neues Abzeichen: ' + nb[0][1]); save(); hud(); renderShop() });
-  document.querySelectorAll('[data-wear]').forEach(b => b.onclick = () => { const s = SHOP.find(x => x.id === b.dataset.wear); if(s.kind === 'color') G.look.color = s.key; else G.look[s.kind] = G.look[s.kind] === s.key ? null : s.key; sfx.click(); save(); hud(); renderShop() });
+  document.querySelectorAll('[data-wear]').forEach(b => b.onclick = () => { const s = SHOP.find(x => x.id === b.dataset.wear); if(s.kind === 'color' || s.kind === 'lid') G.look[s.kind] = s.key; else G.look[s.kind] = G.look[s.kind] === s.key ? null : s.key; sfx.click(); save(); hud(); renderShop() });
   document.querySelectorAll('[data-skill]').forEach(b => b.onclick = () => { const sk = SKILLS.find(x => x[0] === b.dataset.skill), l = skl(sk[0]), p = sk[3][l]; if(l >= 5 || G.coins < p || lvlOf(G.xp).lvl < SKILL_LVL[l]) return;
     G.coins -= p; G.skills[sk[0]] = l + 1; sfx.level(); toast(sk[1] + ' jetzt auf Stufe ' + (l + 1) + '!'); const nb = checkBadges(); if(nb.length) setTimeout(() => toast('Neues Abzeichen: ' + nb[0][1]), 1500); save(); hud(); renderShop() });
   document.querySelectorAll('[data-buychest]').forEach(b => b.onclick = () => { const ch = CHESTS.find(x => x[0] === b.dataset.buychest); if(G.coins < ch[2]) return; G.coins -= ch[2]; hud(); save(); openChest(ch[0] === 'gold' ? 'gold' : 'wood', () => renderShop()) });
@@ -732,7 +816,7 @@ function renderAlbum(){
     <section class="grid">${ART.CREATURES.map(cr => { const have = G.cards[cr[0]];
       return `<div class="item cre ${have ? (G.look.pet === cr[0] ? 'worn' : '') : 'locked'}"><canvas width="14" height="17" data-c="${cr[0]}"></canvas><b>${have ? esc(cr[1]) : '???'}</b><span class="rar r${cr[5]}">${['Normal', 'Selten', 'Episch'][cr[5]]}</span>
         ${have ? `<button class="${G.look.pet === cr[0] ? 'alt' : ''}" data-pet="${cr[0]}">${G.look.pet === cr[0] ? 'Begleitet dich' : 'Als Begleiter'}</button><small>Stufe ${ART.petStage(have)} · ${have}×</small>` : ''}</div>` }).join('')}</section>`;
-  document.querySelectorAll('[data-c]').forEach(cv => ART.creature(cv.getContext('2d'), cv.dataset.c, 1, 4, 1, ART.petStage(G.cards[cv.dataset.c] || 1), 1));
+  document.querySelectorAll('[data-c]').forEach(cv => ART.creature(ART.ctx(cv), cv.dataset.c, 1, 4, 1, ART.petStage(G.cards[cv.dataset.c] || 1), 1));
   document.querySelectorAll('[data-pet]').forEach(b => b.onclick = () => { G.look.pet = G.look.pet === b.dataset.pet ? null : b.dataset.pet; sfx.click(); save(); renderAlbum() });
 }
 
