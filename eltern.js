@@ -42,7 +42,7 @@ async function afterLogin(session){
     return;
   }
   $('#tabs').hidden = false;
-  await loadAll(); render(); loadSugg().catch(() => {});
+  await loadAll(); render(); loadSugg().catch(() => {}); checkAudioGaps();
 }
 $('#logout').onclick = async () => { await sb.auth.signOut(); renderLogin() };
 document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => { tab = b.dataset.t; editing = null; sure = null; pinEdit = null; document.querySelectorAll('#tabs button').forEach(x => x.setAttribute('aria-selected', x === b)); render() });
@@ -156,7 +156,7 @@ function renderWords(){
     const { error } = await sb.from('units').upsert(row);
     if(error){ console.error(error); return toast('Speichern hat nicht geklappt: ' + error.message) }
     const i = units.findIndex(u => u.id === row.id); i >= 0 ? units[i] = row : units.push(row);
-    units.sort((a, b) => a.ord - b.ord); editing = null; render(); toast('Gespeichert');
+    units.sort((a, b) => a.ord - b.ord); editing = null; render(); toast('Gespeichert'); checkAudioGaps();
   };
 }
 async function move(id, d){

@@ -67,6 +67,11 @@ function collectTexts(units){
     (g.rules || []).forEach(r => (r.ex || []).forEach(([fr]) => add(fr.replace(/[→·]/g, ','), 'Grammatik', name)));
     (g.tasks || []).forEach(t => add(t.t === 'l' ? t.say : t.t === 'w' ? t.a : (t.q.includes('___') ? t.q.replace('___', t.a) : t.a), 'Grammatik', name));
   }
+  // Konjugierte Verbformen (Verb-Übung und Verben-Welt in den Spielen), mit il/elle und ils/elles
+  for(const lv of new Set(units.map(u => u.level || ''))){
+    verbsOf(units, lv).forEach(v => [0, 1, 2, 3, 4, 5].forEach(i => { add(verbForm(v.inf, v.refl, i, false), 'Verb', (LEVELS[lv] || lv) + ' · Verben');
+      if(i === 2 || i === 5) add(verbForm(v.inf, v.refl, i, true), 'Verb', (LEVELS[lv] || lv) + ' · Verben') }));
+  }
   return [...out.values()];
 }
 // Text für die Sprachausgabe säubern: «(m)», «/», «…» usw.

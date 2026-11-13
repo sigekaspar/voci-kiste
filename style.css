@@ -250,3 +250,5 @@ button.brand{border:0;background:none;padding:0;text-align:left;cursor:pointer}
 .pinbox.login #lf-pin{letter-spacing:.3em}
 .pinbox.login .primary{margin-top:8px;font-size:1.1rem;padding:12px}
 .pinbox.login .hint{text-align:center}
+.warnbar{background:var(--warn-soft);border-color:var(--warn);display:block;line-height:1.6}
+.warnbar button{margin-left:10px}

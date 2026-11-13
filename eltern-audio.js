@@ -49,7 +49,7 @@ async function loadAudioTexts(){
   const { data, error } = await sb.from('units').select('id,title,ord,level,words,grammar').order('ord');
   if(error){ toast('Wörter konnten nicht geladen werden: ' + error.message); return [] }
   await loadCloudAudio(sb);
-  const kindOrder = { 'Wort':0, 'Satz':1, 'Grammatik':2, 'Deutsch':3 };
+  const kindOrder = { 'Wort':0, 'Verb':1, 'Satz':2, 'Grammatik':3, 'Deutsch':4 };
   return collectTexts(data || []).sort((a, b) => kindOrder[a.kind] - kindOrder[b.kind]);
 }
 const status = t => { const c = CLOUD && CLOUD[t.key]; if(c) return c.voice === voiceFor(t.key) ? ['az', 'Azure'] : ['old', 'Azure (andere Stimme)']; return (AUDIO && AUDIO[t.key]) ? ['a', 'Stimme A'] : ['dev', 'Gerätestimme'] };
@@ -150,5 +150,18 @@ async function generate(todo){
     if(bar && audioTexts){ const d = audioTexts.filter(t => status(t)[0] === 'az').length; bar.style.width = d / audioTexts.length * 100 + '%' }
   }
   const n = gen.done; gen = null; try{ wake && wake.release() }catch{}
-  toast(n + ' Aufnahmen erzeugt'); if(tab === 'audio') renderAudio();
+  toast(n + ' Aufnahmen erzeugt'); if(tab === 'audio') renderAudio(); checkAudioGaps();
+}
+
+// Hinweis auf der Elternseite, wenn neue Texte noch keine Azure-Aufnahme haben (z. B. neue Wörter, Klassenwörter)
+async function checkAudioGaps(){
+  try{
+    audioTexts = await loadAudioTexts();
+    const fr = audioTexts.filter(t => !isDe(t.key) && status(t)[0] !== 'az').length, de = audioTexts.filter(t => isDe(t.key) && status(t)[0] !== 'az').length;
+    const tabB = document.querySelector('#tabs [data-t="audio"]'); if(tabB) tabB.textContent = 'Aussprache' + (fr ? ` (${fr})` : '');
+    const h = $('#audio-hint'); if(!h) return;
+    h.hidden = !fr;
+    if(fr) h.innerHTML = `<b>${fr} französische Texte</b> haben noch keine Azure-Aufnahme und werden darum mit der alten Stimme gelesen${de ? ` (dazu ${de} deutsche)` : ''}. <button class="primary" id="audio-hint-go">Jetzt erzeugen</button>`;
+    const go = $('#audio-hint-go'); if(go) go.onclick = () => { const b = document.querySelector('#tabs [data-t="audio"]'); if(b) b.click() };
+  }catch(e){ console.warn(e) }
 }

@@ -35,7 +35,7 @@ async function renderKlasse(){
     const s = sugg.find(x => x.id === +row.dataset.id), e = suggEdit[s.id];
     row.querySelectorAll('[data-f]').forEach(i => i.oninput = () => e[i.dataset.f] = i.value);
     row.querySelectorAll('[data-pl]').forEach(b => b.onclick = () => { const bl = hexToBlob(s[b.dataset.pl + '_audio'], s.mime); if(bl){ stopSpeech(); new Audio(URL.createObjectURL(bl)).play().catch(() => toast('Dieser Browser kann die Aufnahme nicht abspielen.')) } });
-    row.querySelector('[data-ok]').onclick = async ev => { ev.target.disabled = true; try{ await approveSugg(s, e.fr.trim(), e.de.trim(), kname(s.kid_id)); toast('Freigegeben'); sugg = null; renderKlasse() }catch(err){ ev.target.disabled = false; toast(err.message) } };
+    row.querySelector('[data-ok]').onclick = async ev => { ev.target.disabled = true; try{ await approveSugg(s, e.fr.trim(), e.de.trim(), kname(s.kid_id)); toast('Freigegeben'); sugg = null; renderKlasse(); checkAudioGaps() }catch(err){ ev.target.disabled = false; toast(err.message) } };
     row.querySelector('[data-no]').onclick = async ev => { ev.target.disabled = true; const { error } = await sb.from('suggestions').update({ status:'rejected', fr_audio:null, de_audio:null }).eq('id', s.id); if(error) return toast(error.message); sugg = null; renderKlasse() };
   });
   v.querySelectorAll('[data-po]').forEach(b => b.onclick = () => { OWN = OWN || {}; ownList.forEach(o => OWN[o.key] = o); playOwn(b.dataset.po) });
