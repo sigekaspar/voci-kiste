@@ -234,14 +234,13 @@ function startArena(u, wi, eb = 0, li = 0, go){
     c.save(); c.translate(sx, 0);
     ART.scene(c, S.th, S.t, 40 + S.wi * 90, { night: eb === 2 });
     // Arena-Boden: Holzzaun links und rechts
-    c.fillStyle = '#8a5a3c'; for(let x = 0; x < ART.W; x += 16){ c.fillRect(x, ART.GROUND - 18, 3, 18) } c.fillRect(0, ART.GROUND - 14, ART.W, 3);
-    c.fillStyle = ART.INK; c.fillRect(0, ART.GROUND - 15, ART.W, 1);
+    ART.fence(c, ART.GROUND);
     for(const f of S.foes){
       const fx = f.x | 0, fy = (ART.GROUND - 12 * f.scale + f.y + (f.state === 'walk' ? (f.fly ? -22 + Math.sin(S.t * 4 + f.bob) * 6 : -Math.abs(Math.sin(S.t * 8 + f.bob)) * 2) : 0)) | 0;
       if(f.state === 'fly'){ c.save(); c.translate(fx + 6 * f.scale, fy + 6 * f.scale); c.rotate(f.rot); drawFoe(c, f.type, f.pal, -6 * f.scale, -6 * f.scale, f.scale, f.x > S.home, true); c.restore() }
       else drawFoe(c, f.type, f.pal, fx, fy, f.scale, f.x > S.home, f.hurt > 0);
       f.sy = fy;
-      if(f.state === 'walk'){ const nx = fx + 6 * f.scale - 4, ny = fy - 11; c.fillStyle = ART.INK; c.fillRect(nx, ny, 9, 9); c.fillStyle = '#fff6e9'; c.fillRect(nx + 1, ny + 1, 7, 7);
+      if(f.state === 'walk'){ const nx = fx + 6 * f.scale - 4, ny = fy - 11; c.fillStyle = ART.INK; c.fillRect(nx + .5, ny, 8, 9); c.fillRect(nx, ny + .5, 9, 8); c.fillStyle = '#fff6e9'; c.fillRect(nx + 1, ny + 1, 7, 7); c.fillStyle = '#e8dcc8'; c.fillRect(nx + 1, ny + 7.5, 7, .5);
         c.fillStyle = ART.INK; const D = { 1: ['.k.', 'kk.', '.k.', '.k.', 'kkk'], 2: ['kk.', '..k', '.k.', 'k..', 'kkk'], 3: ['kk.', '..k', '.k.', '..k', 'kk.'], 4: ['k.k', 'k.k', 'kkk', '..k', '..k'] }[f.n] || [];
         D.forEach((r, yy) => [...r].forEach((ch, xx) => { if(ch === 'k') c.fillRect(nx + 3 + xx, ny + 2 + yy, 1, 1) })) }
     }
@@ -253,8 +252,8 @@ function startArena(u, wi, eb = 0, li = 0, go){
     if(G.look.pet) ART.creature(c, G.look.pet, S.home - 26, ART.GROUND - 24, 2, ART.petStage(G.cards[G.look.pet] || 1), S.t);
     const vis = S.blink > 0 ? Math.floor(S.blink * 10) % 2 === 0 : true; S.blink = Math.max(0, S.blink - dt);
     if(vis) ART.pip(c, px | 0, ART.GROUND - 30 + py, G.look, S.pstate === 'dash' ? 1 : S.pstate === 'punch' ? 2 : S.frame, 2);
-    if(S.pstate === 'punch'){ const fx = S.target.x < S.home ? px - 4 : px + 24; c.fillStyle = '#fff3b0'; c.fillRect(fx, ART.GROUND - 18, 6, 4); c.fillStyle = ART.INK; c.fillRect(fx, ART.GROUND - 19, 6, 1) }
-    if(S.superOn){ c.fillStyle = Math.sin(S.t * 20) > 0 ? '#ffe27a' : '#fff'; for(let i = 0; i < 6; i++){ const a = S.t * 6 + i; c.fillRect(px + 12 + Math.cos(a) * 18 | 0, ART.GROUND - 15 + Math.sin(a) * 18 | 0, 2, 2) } }
+    if(S.pstate === 'punch'){ const fx = S.target.x < S.home ? px - 8 : px + 22; ART.sprite(c, 'star', { Y: '#ffe27a', W: '#ffffff' }, fx, ART.GROUND - 22, 2) }
+    if(S.superOn){ c.fillStyle = Math.sin(S.t * 20) > 0 ? '#ffe27a' : '#fff'; for(let i = 0; i < 6; i++){ const a = S.t * 6 + i; c.fillRect(Math.round((px + 12 + Math.cos(a) * 18) * 2) / 2, Math.round((ART.GROUND - 15 + Math.sin(a) * 18) * 2) / 2, 1.5, 1.5) } }
     P.step(c, dt);
     c.restore();
     // Wortschilder über den Gegnern ausrichten
@@ -275,14 +274,13 @@ function splitArticle(fr){
   return p ? { art: null, rest: p[2], pre: p[1].trim() } : { art: null, rest: s };
 }
 function bakeable(x){ const { rest } = splitArticle(x.w.fr); const core = rest.replace(/[\s’'\-.!?,]/g, ''); return core.length >= 2 && core.length <= 12 && !/[…\/;]/.test(rest) }
+function shelf(c, x, y, w){ c.fillStyle = ART.INK; c.fillRect(x, y, w, 3.5); c.fillStyle = '#a8744f'; c.fillRect(x + .5, y + .5, w - 1, 2.5); c.fillStyle = '#c99a6b'; c.fillRect(x + .5, y + .5, w - 1, .5); c.fillStyle = '#7a4f35'; c.fillRect(x + .5, y + 2.5, w - 1, .5);
+  for(const bx of [x + 6, x + w - 9]){ c.fillStyle = ART.INK; c.fillRect(bx, y + 3.5, 3, 4); c.fillRect(bx + .5, y + 7.5, 2, .5); c.fillStyle = '#8a5a3c'; c.fillRect(bx + .5, y + 3.5, 2, 3.5) } }
 function drawCake(c, n){
   c.clearRect(0, 0, 40, 30);
-  c.fillStyle = ART.INK; c.fillRect(4, 13, 32, 15); c.fillRect(2, 27, 36, 2);
-  c.fillStyle = '#f7c9a3'; c.fillRect(5, 14, 30, 13);
-  c.fillStyle = '#f7a1c4'; c.fillRect(5, 14, 30, 4); for(let x = 6; x < 34; x += 4) c.fillRect(x, 18, 2, 2);
-  c.fillStyle = '#ffffff'; c.fillRect(5, 22, 30, 1);
+  ART.sprite(c, 'cake', { P: '#f7a1c4', B: '#f7c9a3', W: '#ffffff', G: '#d9e4f2' }, 0, 8, 2);
   const k = Math.min(8, Math.max(1, n));
-  for(let i = 0; i < k; i++){ const x = 7 + i * 3.6 | 0; c.fillStyle = ['#7ec4e6', '#e86a6a', '#7fb069', '#b9a3e3'][i % 4]; c.fillRect(x, 8, 2, 5); c.fillStyle = '#f2b84b'; c.fillRect(x, 5, 2, 3); c.fillStyle = '#fff3b0'; c.fillRect(x, 5, 1, 1) }
+  for(let i = 0; i < k; i++) ART.sprite(c, 'candle', { f: '#f2b84b', Y: '#fff3b0', C: ['#7ec4e6', '#e86a6a', '#7fb069', '#b9a3e3'][i % 4] }, 5 + i * 3.8, 1.5, 1);
 }
 function startBakery(u, wi, eb = 0, li = 0, go){
   if(!go) return basketScene('in', 'bakery', ART.THEMES[wi % ART.THEMES.length], eb, () => startBakery(u, wi, eb, li, true));
@@ -412,27 +410,22 @@ function startBakery(u, wi, eb = 0, li = 0, go){
       if(S.rival >= 1){ S.hearts = 0; heartsUI(S); $('#msg').className = 'msg bad'; $('#msg').textContent = 'Chef Grognon war schneller!'; finish() } }
     else if(S.word && !S.word.done){ S.left -= dt; $('#timer').style.width = Math.max(0, S.left / S.time * 100) + '%'; if(S.left <= 0) fail('Die Zeit ist um! So schreibt man es: ' + S.word.x.w.fr) }
     // Backstube
-    c.fillStyle = '#f6e3c8'; c.fillRect(0, 0, ART.W, ART.H);
-    c.fillStyle = '#ead2b0'; for(let y = 0; y < 110; y += 12) for(let x = (y / 12) % 2 * 12; x < ART.W; x += 24) c.fillRect(x, y, 12, 12);
-    c.fillStyle = '#8a5a3c'; c.fillRect(0, 110, ART.W, 70); c.fillStyle = '#b07a52'; for(let x = 0; x < ART.W; x += 20) c.fillRect(x + 2, 114, 14, 2);
-    c.fillStyle = ART.INK; c.fillRect(0, 109, ART.W, 1);
+    ART.kitchen(c, S.t);
     // Ofen
-    c.fillStyle = ART.INK; c.fillRect(216, 30, 82, 80); c.fillStyle = '#c96a4a'; c.fillRect(218, 32, 78, 78);
-    for(let y = 34; y < 108; y += 8) for(let x = 220 + (y / 8 % 2) * 6; x < 294; x += 12){ c.fillStyle = '#b55a3c'; c.fillRect(x, y, 10, 6) }
     c.fillStyle = ART.INK; c.fillRect(234, 64, 46, 34); c.fillStyle = S.oven > 0 ? '#ffd27a' : S.burnt > 0 ? '#5a4a58' : '#e8925a'; c.fillRect(236, 66, 42, 30);
-    if(S.oven > 0 || Math.sin(S.t * 3) > .6){ c.fillStyle = '#f2b84b'; for(let i = 0; i < 4; i++) c.fillRect(240 + i * 10, 88 + Math.sin(S.t * 10 + i) * 2 | 0, 4, 6) }
-    if(S.burnt > 0){ c.fillStyle = '#6b6b78'; for(let i = 0; i < 5; i++) c.fillRect(244 + i * 6, 30 - (1.2 - S.burnt) * 40 - i * 4 | 0, 5, 5) }
+    if(S.oven > 0 || Math.sin(S.t * 3) > .6){ for(let i = 0; i < 4; i++) ART.sprite(c, 'flame', { Y: '#fff3b0', O: '#f2b84b' }, 238 + i * 10, 86 + Math.round(Math.sin(S.t * 10 + i) * 2), 2) }
+    if(S.burnt > 0){ for(let i = 0; i < 5; i++) ART.sprite(c, 'smoke', { G: '#8a8a98' }, 244 + i * 6, Math.round(30 - (1.2 - S.burnt) * 40 - i * 4), 2) }
     S.oven = Math.max(0, (S.oven || 0) - dt); S.burnt = Math.max(0, (S.burnt || 0) - dt);
     // Regal mit gebackenen Wörtern
-    c.fillStyle = ART.INK; c.fillRect(16, 40, 170, 3); c.fillRect(16, 72, 170, 3);
-    for(let i = 0; i < S.baked; i++){ const row = i < 8 ? 0 : 1, x = 22 + (i % 8) * 20, y = row ? 60 : 28; c.fillStyle = ART.INK; c.fillRect(x - 1, y - 1, 16, 13); c.fillStyle = ['#f2b84b', '#e0a35c', '#f7c9a3', '#f7a1c4'][i % 4]; c.fillRect(x, y, 14, 11); c.fillStyle = '#fff3dd'; c.fillRect(x + 3, y + 2, 2, 2); c.fillRect(x + 9, y + 5, 2, 2) }
+    shelf(c, 16, 40, 170); shelf(c, 16, 72, 170);
+    for(let i = 0; i < S.baked; i++){ const row = i < 8 ? 0 : 1, x = 22 + (i % 8) * 20, y = row ? 60 : 28; ART.sprite(c, 'cookie', { C: ['#f2b84b', '#e0a35c', '#f7c9a3', '#f7a1c4'][i % 4], d: i % 4 === 3 ? '#ffffff' : '#8a5a3c' }, x, y - 1.5, 2) }
     if(S.boss){ ART.pip(c, 30, 110 - 30, { color: 'coal', hat: 'chef', face: 'mustache' }, Math.floor(S.t * 5) % 3, 2);
-      c.fillStyle = ART.INK; c.fillRect(20, 72, 46, 3); for(let i = 0; i < Math.floor(S.rival * S.goal); i++){ c.fillStyle = ART.INK; c.fillRect(21 + i * 5, 64, 5, 8); c.fillStyle = '#a0704e'; c.fillRect(22 + i * 5, 65, 3, 6) } }
+      shelf(c, 20, 72, 46); for(let i = 0; i < Math.floor(S.rival * S.goal); i++) ART.sprite(c, 'cookie', { C: '#a0704e', d: '#5a3a2a' }, 21 + i * 5, 64.5, 1) }
     // Bäcker Pip mit Kochmütze
     ART.pip(c, 120, 110 - 30, { ...G.look, hat: 'chef' }, Math.floor(S.t * 3) % 3 === 0 ? 0 : 2, 2);
     if(G.look.pet) ART.creature(c, G.look.pet, 92, 110 - 24, 2, ART.petStage(G.cards[G.look.pet] || 1), S.t);
     // Teig auf dem Tisch
-    const W = S.word; if(W){ const k = W.need.length ? W.pos / W.need.length : 0; c.fillStyle = ART.INK; c.fillRect(40, 132, 160, 16); c.fillStyle = '#fff3dd'; c.fillRect(42, 134, 156 * k | 0, 12) }
+    const W = S.word; if(W){ const k = W.need.length ? W.pos / W.need.length : 0; c.fillStyle = ART.INK; c.fillRect(41, 132, 158, 16); c.fillRect(40, 133, 160, 14); c.fillStyle = '#e8d4b8'; c.fillRect(41.5, 133.5, 157, 13); if(k > 0){ const w = 156 * k; c.fillStyle = '#fff3dd'; c.fillRect(42, 134, w, 12); c.fillStyle = '#ffffff'; c.fillRect(42.5, 134.5, w - 1, .5); c.fillStyle = '#efdcc0'; c.fillRect(42, 145, w, 1) } }
     P.step(c, dt);
   });
 }

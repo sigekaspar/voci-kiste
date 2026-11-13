@@ -264,7 +264,7 @@ function renderMap(){
     const eb = curEb(u.id), mode = G.mode;
     const c = ART.ctx(cv); c.save(); c.translate(0, -108); ART.scene(c, ART.THEMES[wi % ART.THEMES.length], 2, wi * 140 + 30, { night: eb === 2 });
     if(mode === 'arena'){ drawFoe(c, 'slime', FOEPAL[wi % FOEPAL.length], 230, ART.GROUND - 12, 1, true); drawFoe(c, 'knight', FOEPAL[(wi + 2) % FOEPAL.length], 252, ART.GROUND - 12, 1, true) }
-    if(mode === 'bakery'){ c.fillStyle = ART.INK; c.fillRect(226, ART.GROUND - 22, 28, 22); c.fillStyle = '#c96a4a'; c.fillRect(227, ART.GROUND - 21, 26, 21); c.fillStyle = '#ffd27a'; c.fillRect(232, ART.GROUND - 12, 16, 8) }
+    if(mode === 'bakery') ART.sprite(c, 'oven', { R: '#c96a4a', r: '#a8513a', F: '#ffd27a', Y: '#fff3b0' }, 226, ART.GROUND - 20, 2);
     ART.pip(c, 200, ART.GROUND - 15, mode === 'bakery' ? { ...G.look, hat: 'chef' } : G.look, 0);
     if(G.look.pet) ART.creature(c, G.look.pet, 182, ART.GROUND - 12, 1, ART.petStage(G.cards[G.look.pet] || 1)); c.restore();
     const bc = document.getElementById('bossico-' + u.id); if(bc){ const t = ART.THEMES[wi % ART.THEMES.length], bctx = ART.ctx(bc);
@@ -279,8 +279,8 @@ function renderMap(){
   });
   document.querySelectorAll('[data-mico]').forEach(cv => { const c = ART.ctx(cv);
     if(cv.dataset.mico === 'arena'){ drawFoe(c, 'slime', { B: '#8fd46b', D: '#5a9e45' }, 12, 11, 1, true); ART.pip(c, 0, 9, G.look, 2) }
-    else if(cv.dataset.mico === 'bakery'){ ART.pip(c, 2, 9, { ...G.look, hat: 'chef' }, 0); c.fillStyle = ART.INK; c.fillRect(14, 17, 10, 6); c.fillStyle = '#f2b84b'; c.fillRect(15, 18, 8, 4) }
-    else { c.fillStyle = ART.INK; c.fillRect(10, 18, 14, 4); c.fillStyle = '#5fc4a0'; c.fillRect(11, 18, 12, 2); ART.pip(c, 4, 3, G.look, 1) } });
+    else if(cv.dataset.mico === 'bakery'){ ART.pip(c, 2, 9, { ...G.look, hat: 'chef' }, 0); ART.sprite(c, 'cookie', { C: '#f2b84b', d: '#8a5a3c' }, 15, 15, 1) }
+    else { ART.sprite(c, 'plat', { G: '#5fc4a0', D: '#3a9479', W: '#8a5a3c' }, 10, 18, 1); ART.pip(c, 4, 3, G.look, 1) } });
   document.querySelectorAll('.node[data-u]').forEach(b => b.onclick = () => {
     if(b.classList.contains('locked')){ sfx.wrong(); toast('Zuerst das Level davor schaffen!'); return }
     sfx.click(); ac();
@@ -364,7 +364,7 @@ let raf = null, loopFn = null, keyFn = null;
 let loopId = 0;
 function startLoop(fn){ if(raf) cancelAnimationFrame(raf); loopFn = fn; const my = ++loopId; let last = performance.now(); const step = now => { if(my !== loopId || loopFn !== fn) return; const dt = Math.max(0, Math.min(.05, (now - last) / 1000)); last = now; fn(dt); if(my === loopId && loopFn === fn) raf = requestAnimationFrame(step) }; raf = requestAnimationFrame(step) }
 function stopLoop(){ if(raf) cancelAnimationFrame(raf); raf = null; loopFn = null; if(keyFn){ removeEventListener('keydown', keyFn); keyFn = null } }
-function particles(){ const P = []; return { add(x, y, col, n = 8, sp = 60){ for(let i = 0; i < n; i++){ const a = Math.random() * Math.PI * 2, v = sp * (.4 + Math.random()); P.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 30, life: .8 + Math.random() * .4, col: Array.isArray(col) ? col[i % col.length] : col }) } }, step(c, dt){ for(let i = P.length - 1; i >= 0; i--){ const p = P[i]; p.life -= dt; if(p.life <= 0){ P.splice(i, 1); continue } p.vy += 160 * dt; p.x += p.vx * dt; p.y += p.vy * dt; c.fillStyle = p.col; c.fillRect(p.x | 0, p.y | 0, 2, 2) } } } }
+function particles(){ const P = []; return { add(x, y, col, n = 8, sp = 60){ for(let i = 0; i < n; i++){ const a = Math.random() * Math.PI * 2, v = sp * (.4 + Math.random()); P.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 30, life: .8 + Math.random() * .4, col: Array.isArray(col) ? col[i % col.length] : col }) } }, step(c, dt){ for(let i = P.length - 1; i >= 0; i--){ const p = P[i]; p.life -= dt; if(p.life <= 0){ P.splice(i, 1); continue } p.vy += 160 * dt; p.x += p.vx * dt; p.y += p.vy * dt; c.fillStyle = p.col; const px = Math.round(p.x * 2) / 2, py = Math.round(p.y * 2) / 2; if(p.life > .5) c.fillRect(px, py, 1.5, 1.5); else c.fillRect(px + .25, py + .25, 1, 1) } } } }
 const CONFETTI = ['#e86a6a', '#5fc4a0', '#f2b84b', '#7ec4e6', '#b9a3e3', '#fff'];
 function activeTick(S){ const now = Date.now(); const d = Math.min(CFG.idleCap, (now - S.lastAct) / 1000); S.lastAct = now; S.secs += d; G.daily.secs += d;
   if(!G.daily.done && G.daily.secs >= CFG.dailySecs){ G.daily.done = true; G.daily.count = (G.daily.count || 0) + 1; S.dailyNow = true } }
@@ -557,14 +557,7 @@ function log(S, kind){
 }
 
 /* ---------- Charlie und sein Korb: Szene am Anfang und am Ende eines Levels ---------- */
-function kitchenBg(c){
-  c.fillStyle = '#f6e3c8'; c.fillRect(0, 0, ART.W, ART.H);
-  c.fillStyle = '#ead2b0'; for(let y = 0; y < 110; y += 12) for(let x = (y / 12) % 2 * 12; x < ART.W; x += 24) c.fillRect(x, y, 12, 12);
-  c.fillStyle = '#8a5a3c'; c.fillRect(0, 110, ART.W, 70); c.fillStyle = '#b07a52'; for(let x = 0; x < ART.W; x += 20) c.fillRect(x + 2, 114, 14, 2);
-  c.fillStyle = ART.INK; c.fillRect(0, 109, ART.W, 1);
-  c.fillStyle = ART.INK; c.fillRect(216, 30, 82, 80); c.fillStyle = '#c96a4a'; c.fillRect(218, 32, 78, 78);
-  c.fillStyle = ART.INK; c.fillRect(234, 64, 46, 34); c.fillStyle = '#e8925a'; c.fillRect(236, 66, 42, 30);
-}
+function kitchenBg(c){ ART.kitchen(c); c.fillStyle = ART.INK; c.fillRect(234, 64, 46, 34); c.fillStyle = '#e8925a'; c.fillRect(236, 66, 42, 30) }
 function basketScene(kind, mode, th, eb, then){
   stopLoop(); curView = 'game';
   const bake = mode === 'bakery', gy = bake ? 110 : ART.GROUND, look = bake ? { ...G.look, hat: 'chef' } : G.look;
@@ -600,7 +593,7 @@ function basketScene(kind, mode, th, eb, then){
     if(G.look.pet && kind === 'in' && t > 2.2) ART.creature(c, G.look.pet, cx - 26, gy - 24, 2, ART.petStage(G.cards[G.look.pet] || 1), t);
     if(cy < gy) ART.pip(c, cx, cy, look, frame, 2, clip !== undefined ? { clip } : {});
     ART.basket(c, bx, by, G.look.lid || 'swiss', open, 2);
-    if(kind === 'out' && t > 2.1){ c.fillStyle = '#ffe27a'; for(let i = 0; i < 5; i++){ const a = i / 5 * Math.PI * 2 + t * 3; c.fillRect(bx + 14 + Math.cos(a) * 20, by - 4 + Math.sin(a) * 10, 2, 2) } }
+    if(kind === 'out' && t > 2.1){ c.fillStyle = '#ffe27a'; for(let i = 0; i < 5; i++){ const a = i / 5 * Math.PI * 2 + t * 3; c.fillRect(bx + 14 + Math.cos(a) * 20, by - 4 + Math.sin(a) * 10, 1, 1) } }
   });
   if(kind === 'in') setTimeout(() => { if(!done) sfx.jump() }, 1000);
 }
@@ -690,10 +683,10 @@ function startBoss(u, wi, eb = 0, go){
       const s = S.shots[i]; s.t += dt;
       const k = Math.max(0, Math.min(1, s.t / .45));
       if(s.from === 'me'){ const x = 80 + (224 - 80) * k, y = ART.GROUND - 22 - Math.sin(k * Math.PI) * 50 + (70 - ART.GROUND + 22) * k;
-        c.fillStyle = '#fff3b0'; c.fillRect(x - 2 | 0, y - 2 | 0, 5, 5); c.fillStyle = '#f2c94c'; c.fillRect(x - 1 | 0, y - 1 | 0, 3, 3); P.add(x, y, '#fff3b0', 1, 10);
+        ART.sprite(c, 'star', { Y: '#f2c94c', W: '#fff3b0' }, x - 5, y - 5, 2); P.add(x, y, '#fff3b0', 1, 10);
         if(k >= 1){ S.shots.splice(i, 1); S.hp--; S.hurt = .3; S.shake = .3; sfx.hit(); P.add(225, 70, CONFETTI, 14, 70); $('#hp').style.width = Math.max(0, S.hp / S.maxHP * 100) + '%'; if(S.hp <= 0 && S.phase === 'fight') win() } }
       else { const x = 210 + (66 - 210) * k, y = 70 + (ART.GROUND - 20 - 70) * k;
-        c.fillStyle = '#7ec4e6'; c.fillRect(x | 0, y | 0, 3, 5); c.fillStyle = '#b8e4f5'; c.fillRect(x | 0, y | 0, 1, 2);
+        ART.sprite(c, 'drop', { B: '#7ec4e6', W: '#b8e4f5' }, x - 3, y - 4, 2);
         if(k >= 1){ S.shots.splice(i, 1); S.hearts--; S.phurt = 1; hearts(); P.add(66, ART.GROUND - 16, ['#7ec4e6', '#b8e4f5'], 10, 50); if(S.hearts <= 0) lose() } }
     }
     const bob = Math.sin(S.t * 2) * 4, sx = S.shake > 0 ? (Math.random() - .5) * 4 : 0;
@@ -764,10 +757,7 @@ function checkBadges(){ const nb = BADGES.filter(b => !G.badges[b[0]] && b[3](G)
 function badgeIcon(cv, i, on){
   const c = ART.ctx(cv); c.clearRect(0, 0, 28, 28);
   const cols = ['#f2b84b', '#e86a6a', '#5fc4a0', '#7ec4e6', '#b9a3e3'];
-  c.fillStyle = ART.INK; c.fillRect(6, 2, 16, 3); c.fillRect(3, 5, 22, 16); c.fillRect(6, 21, 16, 3); c.fillRect(10, 24, 8, 3);
-  c.fillStyle = on ? cols[i % cols.length] : '#d9c9b2'; c.fillRect(7, 3, 14, 2); c.fillRect(4, 6, 20, 14); c.fillRect(7, 21, 14, 2); c.fillRect(11, 24, 6, 2);
-  c.fillStyle = on ? '#fff3b0' : '#efe4d4'; const st = [[13, 8], [12, 10], [13, 10], [14, 10], [10, 11], [11, 11], [12, 11], [13, 11], [14, 11], [15, 11], [16, 11], [11, 12], [12, 12], [13, 12], [14, 12], [15, 12], [12, 13], [13, 13], [14, 13], [11, 14], [12, 14], [14, 14], [15, 14], [10, 15], [11, 15], [15, 15], [16, 15]];
-  st.forEach(([x, y]) => c.fillRect(x, y, 1, 1));
+  ART.sprite(c, 'medal', { R: on ? ['#7ec4e6', '#e86a6a', '#b9a3e3', '#f2b84b', '#5fc4a0'][i % 5] : '#c9bba6', C: on ? cols[i % cols.length] : '#d9c9b2', S: on ? '#fff3b0' : '#efe4d4' }, 0, -1, 2);
 }
 function renderBadges(){
   curView = 'badges';

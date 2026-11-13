@@ -63,11 +63,58 @@ const ART = (() => {
     if(tr.heart){ ctx.fillRect(x, y, 1, 1); ctx.fillRect(x + 2, y, 1, 1); ctx.fillRect(x, y + 1, 3, 1); ctx.fillRect(x + 1, y + 2, 1, 1) }
     else if(tr.ring){ ctx.fillRect(x + 1, y, 1, 1); ctx.fillRect(x, y + 1, 1, 1); ctx.fillRect(x + 2, y + 1, 1, 1); ctx.fillRect(x + 1, y + 2, 1, 1) }
     else if(tr.star){ ctx.fillRect(x + 1, y, 1, 3); ctx.fillRect(x, y + 1, 3, 1) }
-    else ctx.fillRect(x, y, 2, 2);
+    else { ctx.fillRect(x + .5, y, 1, 2); ctx.fillRect(x, y + .5, 2, 1) }
   }
   const BASEPAL = { k: INK, s: '#f7c9a3', e: '#2a2230', c: '#f29b9b', m: '#c0505a', w: '#ffffff', p: '#5a4a6b', b: '#6b4a3a' };
 
+  // ---------- Feiner Zeichner: alle groben Figuren werden geglättet (Scale2x/Scale3x) und schattiert,
+  // damit sie dieselbe feine Pixelgrösse wie Charlie haben ----------
+  const UPC = new Map();
+  function up2(g){ const h = g.length, w = g[0].length, o = Array.from({ length: h * 2 }, () => Array(w * 2));
+    const at = (r, c) => (r < 0 || c < 0 || r >= h || c >= w) ? '.' : g[r][c];
+    for(let r = 0; r < h; r++) for(let c = 0; c < w; c++){ const P = g[r][c], A = at(r - 1, c), B = at(r, c + 1), C = at(r, c - 1), D = at(r + 1, c);
+      o[2 * r][2 * c] = C === A && C !== D && A !== B ? A : P; o[2 * r][2 * c + 1] = A === B && A !== C && B !== D ? B : P;
+      o[2 * r + 1][2 * c] = D === C && D !== B && C !== A ? C : P; o[2 * r + 1][2 * c + 1] = B === D && B !== A && D !== C ? D : P }
+    return o }
+  function up3(g){ const h = g.length, w = g[0].length, o = Array.from({ length: h * 3 }, () => Array(w * 3));
+    const at = (r, c) => (r < 0 || c < 0 || r >= h || c >= w) ? '.' : g[r][c];
+    for(let r = 0; r < h; r++) for(let c = 0; c < w; c++){
+      const A = at(r - 1, c - 1), B = at(r - 1, c), C = at(r - 1, c + 1), D = at(r, c - 1), E = g[r][c], F = at(r, c + 1), G = at(r + 1, c - 1), H = at(r + 1, c), I = at(r + 1, c + 1);
+      const v = [D === B && D !== H && B !== F ? D : E, (D === B && D !== H && B !== F && E !== C) || (B === F && B !== D && F !== H && E !== A) ? B : E, B === F && B !== D && F !== H ? F : E,
+        (D === B && D !== H && B !== F && E !== G) || (D === H && D !== B && H !== F && E !== A) ? D : E, E, (B === F && B !== D && F !== H && E !== I) || (H === F && H !== D && F !== B && E !== C) ? F : E,
+        D === H && D !== B && H !== F ? D : E, (D === H && D !== B && H !== F && E !== I) || (H === F && H !== D && F !== B && E !== G) ? H : E, H === F && H !== D && F !== B ? F : E];
+      for(let i = 0; i < 9; i++) o[3 * r + (i / 3 | 0)][3 * c + i % 3] = v[i] }
+    return o }
+  // Licht oben, Schatten unten an grösseren Farbflächen
+  function shade(g){ const cnt = {}; g.forEach(r => r.forEach(ch => cnt[ch] = (cnt[ch] || 0) + 1));
+    const big = ch => ch !== '.' && ch !== 'k' && cnt[ch] >= 24;
+    return g.map((row, r) => row.map((ch, c) => { if(!big(ch)) return [ch, 0]; const up = r ? g[r - 1][c] : '.', dn = r < g.length - 1 ? g[r + 1][c] : '.';
+      return [ch, (up === 'k' || up === '.') ? 1 : (dn === 'k' || dn === '.') ? 2 : (r < g.length - 2 && (g[r + 2][c] === 'k' || g[r + 2][c] === '.')) ? 3 : 0] })) }
+  function fineOf(rows, f){ const key = rows.join('/'); let m = UPC.get(key); if(!m){ m = {}; UPC.set(key, m) } if(m[f]) return m[f];
+    let g = rows.map(r => [...r]); if(f === 3) g = up3(g); else if(f > 1){ g = up2(g); if(f === 4) g = up2(g) }
+    return m[f] = shade(g) }
+  const TONE = new Map();
+  function tone(col, k){ const key = col + k; if(TONE.has(key)) return TONE.get(key);
+    const m = /^#([0-9a-f]{6})([0-9a-f]{2})?$/i.exec(col); let out = col;
+    if(m){ const n = parseInt(m[1], 16); let rr = n >> 16, gg = n >> 8 & 255, bb = n & 255;
+      const mix = (v, t, a) => Math.round(v + (t - v) * a);
+      if(k === 1){ rr = mix(rr, 255, .28); gg = mix(gg, 255, .28); bb = mix(bb, 255, .28) } else { const a = k === 2 ? .22 : .1; rr = mix(rr, 30, a); gg = mix(gg, 20, a); bb = mix(bb, 40, a) }
+      out = '#' + ((1 << 24) | (rr << 16) | (gg << 8) | bb).toString(16).slice(1) + (m[2] || '') }
+    TONE.set(key, out); return out }
   function draw(ctx, rows, pal, x, y, flip = false, scale = 1){
+    const f = scale <= 2 ? 2 : Math.round(scale) >= 4 ? 4 : 3; drawGrid(ctx, fineOf(rows, f), pal, x, y, flip, scale / f) }
+  // schon feine Figuren (Charlie): nur schattieren
+  function drawFine(ctx, rows, pal, x, y, p){ drawGrid(ctx, fineOf(rows, 1), pal, x, y, false, p) }
+  function drawGrid(ctx, g, pal, x, y, flip, p){
+    const w = g[0].length;
+    for(let r = 0; r < g.length; r++){ const row = g[r]; let c = 0;
+      while(c < w){ const [ch, t] = row[c]; const col = pal[ch]; let e = c + 1;
+        while(e < w && row[e][0] === ch && row[e][1] === t) e++;
+        if(ch !== '.' && col){ ctx.fillStyle = t ? tone(col, t) : col; const x0 = flip ? w - e : c;
+          ctx.fillRect(Math.round((x + x0 * p) * 2) / 2, Math.round((y + r * p) * 2) / 2, (e - c) * p, p) }
+        c = e } }
+  }
+  function drawRaw(ctx, rows, pal, x, y, flip = false, scale = 1){
     const w = rows[0].length;
     for(let r = 0; r < rows.length; r++) for(let c = 0; c < w; c++){
       const ch = rows[r][c]; if(ch === '.') continue;
@@ -88,6 +135,13 @@ const ART = (() => {
     ['......kfffk..kfffk......', '......kfffk..kfffk......', '.....kdddk....kdddk.....', '.....kkkk......kkkk.....'],
     ['.......kfffkkfffk.......', '......kfffk..kfffk......', '......kdddk..kdddk......', '......kkkk....kkkk......'],
     ['.....kfffk....kfffk.....', '....kfffk......kfffk....', '....kdddk......kdddk....', '....kkkk........kkkk....']];
+  // Gesichts-Extras in feinen Pixeln, passend zu Charlies Augen
+  const FACE_FINE = {
+    glasses: { row: 6, rows: mir(['...kkkkkk...', '...kw...kkkk', '...k....k...', '...kkkkkk...']), pal: {} },
+    sunglasses: { row: 6, rows: mir(['...kkkkkk...', '...kBwBBkkkk', '...kBBBBk...', '....kkkk....']), pal: { B: '#2e2a3a' } },
+    hearts: { row: 5, rows: mir(['...RR.RR....', '..RRwRRRRkkk', '...RRRRR....', '....RRR.....', '.....R......']), pal: { R: '#e86a6a' } },
+    mustache: { row: 10, rows: mir(['........kkkk', '......kkkkk.', '......k.....']), pal: {} }
+  };
   const CH_PAL = { k: INK, f: '#9a7656', F: '#7a5a40', g: '#b8946f', l: '#efdcbc', L: '#d9c19c', e: '#5a3f2c', o: '#1d1620', w: '#ffffff', n: '#2a1f1a', m: '#a8485a', c: '#f3ead8', r: '#f2a0a0', d: '#6e4a31' };
   // Charlie: gleiche Grösse wie die alte Figur (12×14 grobe Pixel), aber doppelt so fein gezeichnet
   function pip(ctx, x, y, look = {}, frame = 0, scale = 1, opt = {}){
@@ -96,14 +150,14 @@ const ART = (() => {
     const y0 = y + scale; // Kopf beginnt eine grobe Zeile tiefer, Füsse bleiben am Boden
     const clip = opt.clip; // nur bis zu dieser Höhe zeichnen (für den Korb)
     if(clip !== undefined){ ctx.save(); ctx.beginPath(); ctx.rect(x - 40, y - 60, 12 * scale + 80, clip - (y - 60)); ctx.clip() }
-    draw(ctx, CH_HEAD, pal, x, y0, false, p);
-    if(look.color === 'rainbow') CH_BODY.forEach((row, i) => { const rc = RAINBOW[Math.floor(i / 2) % RAINBOW.length]; draw(ctx, [row], { ...pal, h: rc, H: rc }, x, y0 + (13 + i) * p, false, p) });
-    else draw(ctx, CH_BODY, pal, x, y0 + 13 * p, false, p);
+    drawFine(ctx, CH_HEAD, pal, x, y0, p);
+    if(look.color === 'rainbow') CH_BODY.forEach((row, i) => { const rc = RAINBOW[Math.floor(i / 2) % RAINBOW.length]; drawRaw(ctx, [row], { ...pal, h: rc, H: rc }, x, y0 + (13 + i) * p, false, p) });
+    else drawFine(ctx, CH_BODY, pal, x, y0 + 13 * p, p);
     // Strickmuster am Pulli
     ctx.fillStyle = col[1]; for(let i = 0; i < 5; i++) ctx.fillRect(x + (7 + i * 2.5) * p, y0 + 17.5 * p, p, p);
-    draw(ctx, CH_LEGS[((frame | 0) % 3 + 3) % 3], pal, x, y0 + 22 * p, false, p);
+    drawRaw(ctx, CH_LEGS[((frame | 0) % 3 + 3) % 3], pal, x, y0 + 22 * p, false, p);
     const face = FACES[look.face];
-    if(face) draw(ctx, face.rows, { k: INK, ...face.pal }, x, y + (face.dy + 2) * scale, false, scale);
+    if(face){ const ff = FACE_FINE[look.face]; if(ff) drawRaw(ctx, ff.rows, { k: INK, w: '#ffffff', ...face.pal, ...ff.pal }, x, y0 + ff.row * p, false, p); else draw(ctx, face.rows, { k: INK, ...face.pal }, x, y + (face.dy + 2) * scale, false, scale) }
     const hat = HATS[look.hat];
     if(hat) draw(ctx, hat.rows, { k: INK, ...hat.pal }, x, y + (hat.dy + 1) * scale, false, scale);
     if(clip !== undefined) ctx.restore();
@@ -198,15 +252,17 @@ const ART = (() => {
     const band = H / 3;
     for(let i = 0; i < 3; i++){ ctx.fillStyle = cols[i]; ctx.fillRect(0, i * band | 0, W, band + 1 | 0) }
     // Pixel-Dither zwischen den Bändern
-    for(let i = 1; i < 3; i++){ ctx.fillStyle = cols[i]; for(let x = 0; x < W; x += 2) ctx.fillRect(x + (i % 2), (i * band | 0) - 2, 1, 1), ctx.fillRect(x, (i * band | 0) - 4, 1, 1) }
+    for(let i = 1; i < 3; i++){ ctx.fillStyle = cols[i]; const b = i * band | 0;
+      for(let x = 0; x < W; x += 1){ ctx.fillRect(x, b - 1, .5, .5); ctx.fillRect(x + .5, b - .5, .5, .5); if(x % 2 === 0){ ctx.fillRect(x, b - 2.5, .5, .5); ctx.fillRect(x + 1, b - 4, .5, .5) } if(x % 4 === 0) ctx.fillRect(x + .5, b - 6, .5, .5) }
+      ctx.fillStyle = cols[i - 1]; for(let x = 0; x < W; x += 2) ctx.fillRect(x + .5, b + .5, .5, .5) }
   }
   function hills(ctx, col, base, amp, freq, off, seed){
     ctx.fillStyle = col;
-    for(let x = 0; x < W; x++){
+    for(let x = 0; x < W; x += .5){
       const wx = x + off;
       const h = Math.sin((wx + seed) * freq) * amp + Math.sin((wx + seed * 3) * freq * 2.3) * amp * .35;
-      const top = Math.round(base - h);
-      ctx.fillRect(x, top, 1, H - top);
+      const top = Math.round((base - h) * 2) / 2;
+      ctx.fillRect(x, top, .5, H - top);
       if(hash(wx * .5 + seed) > .5){ ctx.fillStyle = '#ffffff22'; ctx.fillRect(x, top, 1, .5); ctx.fillStyle = col }
       if(hash(wx * 1.9 + seed) > .97){ ctx.fillStyle = '#00000018'; ctx.fillRect(x, top + 4 + hash(wx) * 10, .5, .5); ctx.fillStyle = col }
     }
@@ -263,8 +319,14 @@ const ART = (() => {
     const night = !!opts.night;
     sky(ctx, th, night);
     if(night){
-      for(let i = 0; i < 40; i++){ const x = hash(i) * W | 0, y = hash(i + 50) * 90 | 0; ctx.fillStyle = (Math.sin(t * 2 + i) > .3) ? '#fff7c2' : '#b9a3e3'; ctx.fillRect(x, y, 1, 1) }
-      ctx.fillStyle = '#fff7c2'; ctx.fillRect(250, 20, 16, 16); ctx.fillStyle = '#5a4a80'; ctx.fillRect(256, 18, 12, 14);
+      for(let i = 0; i < 40; i++){ const x = hash(i) * W | 0, y = hash(i + 50) * 90 | 0; const tw = Math.sin(t * 2 + i) > .3; ctx.fillStyle = tw ? '#fff7c2' : '#b9a3e3'; if(i % 5 === 0 && tw){ ctx.fillRect(x - .5, y, 1.5, .5); ctx.fillRect(x, y - .5, .5, 1.5) } else ctx.fillRect(x, y, .5, .5) }
+      // Mondsichel in feinen Pixeln
+      const mx = 258, my = 28, R = 8;
+      for(let dy = -R; dy < R; dy += .5){ const yy = dy + .25, hw = Math.sqrt(Math.max(0, R * R - yy * yy)), cx2 = 4.5, cy2 = -2.5, r2 = 7, d = yy - cy2, hw2 = r2 * r2 - d * d;
+        let a1 = -hw, b1 = hw; const segs = [];
+        if(hw2 > 0){ const h2 = Math.sqrt(hw2), a2 = cx2 - h2, b2 = cx2 + h2; if(a2 > a1) segs.push([a1, Math.min(b1, a2)]); if(b2 < b1) segs.push([Math.max(a1, b2), b1]) } else segs.push([a1, b1]);
+        segs.forEach(([p, q]) => { if(q - p < .25) return; const x0 = Math.round((mx + p) * 2) / 2, x1 = Math.round((mx + q) * 2) / 2; ctx.fillStyle = '#fff7c2'; ctx.fillRect(x0, my + dy, Math.max(.5, x1 - x0), .5) }) }
+      ctx.fillStyle = '#f0e2a0'; ctx.fillRect(252, 31, 1, 1); ctx.fillRect(254.5, 34, .5, .5); ctx.fillStyle = '#fff7c255'; ctx.fillRect(249, 27, .5, .5);
     } else {
       ctx.fillStyle = '#fff3c9'; ctx.fillRect(244, 26, 18, 18); ctx.fillRect(243, 27, 20, 16); ctx.fillStyle = '#ffe08a'; ctx.fillRect(246, 28, 14, 14); ctx.fillStyle = '#fff6c8'; ctx.fillRect(247, 29, 4, 2); ctx.fillRect(247, 29, 2, 4);
       ctx.fillStyle = '#fff3c955'; for(let i = 0; i < 8; i++){ const a = i / 8 * Math.PI * 2 + t * .2, r = 14 + Math.sin(t * 2 + i) * 1.5; ctx.fillRect(253 + Math.cos(a) * r, 35 + Math.sin(a) * r, 1, 1) }
@@ -280,7 +342,7 @@ const ART = (() => {
     }
     hills(ctx, night ? '#2f2850' : th.hill3, 146, 4, .05, off * .7, 90);
     ground(ctx, night ? { ground: '#3a2e45', grass: '#5a5285', hill3: '#2f2850' } : th, off, opts.gaps || []);
-    if(night) for(let i = 0; i < 8; i++){ const x = (hash(i + 9) * W + Math.sin(t + i) * 10) | 0, y = 90 + (hash(i + 20) * 50 + Math.cos(t * 1.3 + i) * 6) | 0; ctx.fillStyle = Math.sin(t * 3 + i) > 0 ? '#fff7a0' : '#d8e07a'; ctx.fillRect(x, y, 2, 2) }
+    if(night) for(let i = 0; i < 8; i++){ const x = (hash(i + 9) * W + Math.sin(t + i) * 10) | 0, y = 90 + (hash(i + 20) * 50 + Math.cos(t * 1.3 + i) * 6) | 0; ctx.fillStyle = Math.sin(t * 3 + i) > 0 ? '#fff7a0' : '#d8e07a'; ctx.fillRect(x + .25, y, 1, 1.5); ctx.fillRect(x, y + .25, 1.5, 1) }
   }
   function platform(ctx, x, y, w, col, dark, crumble = 0){
     if(crumble > 0) y += crumble * crumble * 60;
@@ -298,11 +360,50 @@ const ART = (() => {
     ctx.fillStyle = INK; ctx.fillRect(x + w / 2 | 0, y - 13, 8, 1); ctx.fillRect(x + w / 2 + 7 | 0, y - 12, 1, 5); ctx.fillRect(x + w / 2 | 0, y - 7, 8, 1);
   }
   function coin(ctx, x, y, t){
-    const w = Math.max(1, Math.round(Math.abs(Math.cos(t * 6)) * 6));
-    ctx.fillStyle = INK; ctx.fillRect(x - w / 2 - 1 | 0, y - 4, w + 2, 9);
-    ctx.fillStyle = '#f2c94c'; ctx.fillRect(x - w / 2 | 0, y - 3, w, 7);
-    ctx.fillStyle = '#fff3b0'; if(w > 2) ctx.fillRect(x - w / 2 + 1 | 0, y - 2, 1, 3);
+    const w = Math.max(1, Math.abs(Math.cos(t * 6)) * 6.5);
+    for(let dy = -4.5; dy <= 4; dy += .5){ const k = Math.sqrt(Math.max(0, 1 - (dy + .25) * (dy + .25) / 21)), hw = Math.max(.5, Math.round(w / 2 * k * 2) / 2);
+      ctx.fillStyle = INK; ctx.fillRect(x - hw - .5, y + dy, hw * 2 + 1, .5) }
+    for(let dy = -4; dy <= 3.5; dy += .5){ const k = Math.sqrt(Math.max(0, 1 - (dy + .25) * (dy + .25) / 16)), hw = Math.round(w / 2 * k * 2) / 2; if(hw <= 0) continue;
+      ctx.fillStyle = dy < -2.5 ? '#ffe9a0' : dy > 2 ? '#c99a2a' : '#f2c94c'; ctx.fillRect(x - hw, y + dy, hw * 2, .5) }
+    if(w > 3){ ctx.fillStyle = '#fff6cc'; ctx.fillRect(x - w / 4, y - 2.5, .5, 3); ctx.fillStyle = '#d9a832'; ctx.fillRect(x + w / 5, y - 1.5, .5, 3) }
   }
+  // feiner Holzzaun für die Arena
+  function fence(ctx, gy, off = 0){
+    for(let x = 0; x < W; x += 16){ hp(ctx, x - .5, gy - 19, 4, 19, INK); hp(ctx, x, gy - 18.5, 3, 18.5, '#8a5a3c'); hp(ctx, x, gy - 18.5, .5, 18.5, '#a8744f'); hp(ctx, x + 2.5, gy - 18.5, .5, 18.5, '#6e4630'); hp(ctx, x, gy - 19.5, 3, 1, INK); hp(ctx, x + .5, gy - 18.5, 2, .5, '#b88a62') }
+    hp(ctx, 0, gy - 15, W, 4, INK); hp(ctx, 0, gy - 14.5, W, 3, '#8a5a3c'); hp(ctx, 0, gy - 14.5, W, .5, '#b07a52'); hp(ctx, 0, gy - 12, W, .5, '#6e4630');
+    for(let x = 4; x < W; x += 11) hp(ctx, x + hash(x) * 4, gy - 13.5, 2 + hash(x * 3) * 3, .5, '#7a4f35');
+    for(let x = 1; x < W; x += 16) hp(ctx, x + .75, gy - 13.75, .75, .75, '#4a3428');
+  }
+  // feine Backstube (Wand mit Kacheln, Holzboden, Ofen); Ofentür und Feuer zeichnet die Bäckerei selbst
+  function kitchen(ctx, t = 0){
+    hp(ctx, 0, 0, W, H, '#f6e3c8');
+    for(let y = 0; y < 110; y += 12) for(let x = 0; x < W; x += 12){ const alt = ((x + y) / 12) % 2; hp(ctx, x, y, 12, 12, alt ? '#ead2b0' : '#f6e3c8'); hp(ctx, x + .5, y + .5, 11, .5, alt ? '#f1dcc0' : '#fbefdd'); hp(ctx, x, y + 11.5, 12, .5, '#dcc3a0'); hp(ctx, x + 11.5, y, .5, 12, '#dcc3a0') }
+    hp(ctx, 0, 96, W, 13, '#e0c49c'); hp(ctx, 0, 96, W, .5, '#c9a87e'); for(let x = 0; x < W; x += 6) hp(ctx, x, 97, .5, 12, '#d4b78e');
+    hp(ctx, 0, 110, W, 70, '#8a5a3c');
+    for(let yy = 110; yy < H; yy += 10){ hp(ctx, 0, yy, W, .5, '#6e4630'); for(let x = (yy / 10 % 2) * 20; x < W; x += 40) hp(ctx, x, yy, .5, 10, '#6e4630') }
+    for(let x = 0; x < W; x += 20) hp(ctx, x + 2, 114, 14, 1, '#b07a52');
+    for(let i = 0; i < 30; i++) hp(ctx, hash(i) * W, 112 + hash(i + 7) * 66, 2 + hash(i + 3) * 4, .5, '#7a4f35');
+    hp(ctx, 0, 109, W, 1, INK);
+    // Ofen aus Backsteinen
+    hp(ctx, 216, 30, 82, 80, INK); hp(ctx, 218, 32, 78, 78, '#c96a4a');
+    for(let y = 34, r = 0; y < 108; y += 8, r++) for(let x = 220 + (r % 2) * 6; x < 294; x += 12){ hp(ctx, x, y, 10, 6, '#b55a3c'); hp(ctx, x, y, 10, .5, '#d47c5c'); hp(ctx, x, y + 5.5, 10, .5, '#94452d') }
+    hp(ctx, 212, 26, 90, 6, INK); hp(ctx, 213, 27, 88, 4, '#8a5a3c'); hp(ctx, 213, 27, 88, .5, '#b07a52');
+    hp(ctx, 232, 62, 50, 38, INK); hp(ctx, 233, 63, 48, 1, '#5a3a2a');
+  }
+  // ---------- Kleine Figuren für Orden, Kuchen, Backstube, Geschosse (werden fein geglättet gezeichnet) ----------
+  const SPR = {
+    medal: ['..kkk....kkk..', '..kRk....kRk..', '...kRk..kRk...', '....kRkkRk....', '.....kRRk.....', '....kkkkkk....', '...kCCCCCCk...', '..kCCCSSCCCk..', '..kCCSSSSCCk..', '..kCSSSSSSCk..', '..kCCSSSSCCk..', '..kCCSCCSCCk..', '..kCCCCCCCCk..', '...kCCCCCCk...', '....kkkkkk....'],
+    cake: ['..kkkkkkkkkkkkkkkk..', '.kPPPPPPPPPPPPPPPPk.', '.kPPPPPPPPPPPPPPPPk.', '.kBPBBPBBBPBBPBBPBk.', '.kBBBBBBBBBBBBBBBBk.', '.kWWWWWWWWWWWWWWWWk.', '.kBBBBBBBBBBBBBBBBk.', '.kBBBBBBBBBBBBBBBBk.', 'kkkkkkkkkkkkkkkkkkkk', 'kGGGGGGGGGGGGGGGGGGk', '.kkkkkkkkkkkkkkkkkk.'],
+    candle: ['.f.', 'fYf', '.k.', 'kCk', 'kCk', 'kCk', 'kkk'],
+    cookie: ['..kkkk..', '.kCCCCk.', 'kCdCCCCk', 'kCCCCdCk', 'kCCdCCCk', '.kCCCCk.', '..kkkk..'],
+    star: ['..k..', '.kYk.', 'kYWYk', '.kYk.', '..k..'],
+    drop: ['.k.', 'kBk', 'kBk', 'kWk', '.k.'],
+    oven: ['kkkkkkkkkkkkkk', 'kRrRRrRRrRRrRk', 'kRRRRRRRRRRRRk', 'kRkkkkkkkkkkRk', 'kRkFFFFFFFFkRk', 'kRkFYFFYFFYkRk', 'kRkFFFFFFFFkRk', 'kRkkkkkkkkkkRk', 'kRRrRRrRRrRRRk', 'kkkkkkkkkkkkkk'],
+    flame: ['..k..', '.kYk.', 'kYOYk', 'kOOOk', '.kkk.'],
+    smoke: ['.kk.', 'kGGk', 'kGGk', '.kk.'],
+    plat: ['kkkkkkkkkkkkkk', 'kGGGGGGGGGGGGk', 'kDDDDDDDDDDDDk', 'kWWWWWWWWWWWWk', 'kkkkkkkkkkkkkk']
+  };
+  function sprite(ctx, name, pal, x, y, scale = 1, flip = false){ draw(ctx, SPR[name], { k: INK, ...pal }, x, y, flip, scale) }
   function ctx(cv){ if(!cv._lw){ cv._lw = cv.width; cv._lh = cv.height; cv.width = cv._lw * 2; cv.height = cv._lh * 2 } const c = cv.getContext('2d'); c.setTransform(2, 0, 0, 2, 0, 0); c.imageSmoothingEnabled = false; return c }
-  return { ctx, LIDS, basket, W, H, GROUND, COLORS, HATS, FACES, TRAILS, trailDot, petStage, CREATURES, THEMES, INK, draw, pip, creature, boss, chest, scene, platform, coin, hash };
+  return { sprite, ctx, LIDS, basket, fence, kitchen, W, H, GROUND, COLORS, HATS, FACES, TRAILS, trailDot, petStage, CREATURES, THEMES, INK, draw, pip, creature, boss, chest, scene, platform, coin, hash };
 })();
