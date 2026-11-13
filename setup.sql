@@ -164,7 +164,7 @@ revoke all on function public.kid_save(text, text, jsonb, int, int, date)       
 revoke all on function public.kid_log(text, text, text, text[], int, int, int, timestamptz) from public;
 revoke all on function public.admin_set_kid(text, text)                         from public;
 revoke all on function public.is_admin()                                        from public;
-grant execute on function public.kid_names()                                     to anon, authenticated;
+-- kid_names wird aus Datenschutzgründen nicht mehr freigegeben (Kinder tippen Name und PIN ein)
 grant execute on function public.kid_login(text, text)                           to anon, authenticated;
 grant execute on function public.kid_save(text, text, jsonb, int, int, date)     to anon, authenticated;
 grant execute on function public.kid_log(text, text, text, text[], int, int, int, timestamptz) to anon, authenticated;
@@ -306,3 +306,8 @@ revoke all on function public.kid_suggest(text, text, text, text, text, text, te
 revoke all on function public.kid_suggestions(text, text) from public;
 grant execute on function public.kid_suggest(text, text, text, text, text, text, text, text, text) to anon, authenticated;
 grant execute on function public.kid_suggestions(text, text) to anon, authenticated;
+
+-- Datenschutz: keine Namensliste, eigene Aufnahmen ohne Kindernamen für die Kinderseite
+revoke execute on function public.kid_names() from anon, authenticated, public;
+revoke select on public.own_clips from anon;
+grant select (key, path, updated_at) on public.own_clips to anon;

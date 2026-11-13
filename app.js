@@ -7,7 +7,6 @@ let kid = ls.get('vk-kid', null);       // { name, pin }
 let units = [], sel = new Set(), dir = 'de-fr', how = 'write', view = 'start', sess = null;
 let gameInfo = null;
 let prog = { cards:{}, stars:0, streak:0, lastDay:'' };
-let pin = '', pinFor = null, pinErr = '';
 let gUnit = ls.get('vk-gunit', null);
 
 /* ---------- Daten ---------- */
@@ -43,36 +42,31 @@ async function init(){
   if(kid) await login(kid.name, kid.pin, true); else renderWho();
 }
 
-async function renderWho(){
+// Anmelden: Name und PIN eintippen. Es wird keine Liste der Kinder angezeigt (Datenschutz).
+let loginErr = '', loginName = '';
+function renderWho(){
   showChrome(false);
   const v = $('#view');
-  const { data, error } = await sb.rpc('kid_names');
-  if(error){ v.innerHTML = `<div class="empty"><p>Die Namen konnten nicht geladen werden.</p></div>`; return }
-  if(!data?.length){ v.innerHTML = `<div class="empty"><h2>Noch niemand eingetragen</h2><p>Die Eltern tragen auf der Elternseite zuerst die Kinder mit PIN ein.</p></div>`; return }
-  v.innerHTML = `<section><h2>Wer übt heute?</h2><div class="who">${data.map(k => `<button data-n="${esc(k.name)}"><span class="ava">${esc(k.name.slice(0,1).toUpperCase())}</span>${esc(k.name)}</button>`).join('')}</div></section>`;
-  v.querySelectorAll('.who button').forEach(b => b.onclick = () => { pinFor = b.dataset.n; pin = ''; pinErr = ''; renderPin() });
+  v.innerHTML = `<form class="pinbox login" id="lf" autocomplete="off"><h2>Wer übt heute?</h2>
+    <label class="label" for="lf-name">Dein Name</label>
+    <input class="field" id="lf-name" autocapitalize="words" autocorrect="off" spellcheck="false" value="${esc(loginName)}" autocomplete="username">
+    <label class="label" for="lf-pin">Deine PIN</label>
+    <input class="field" id="lf-pin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="8" autocomplete="current-password">
+    ${loginErr ? `<p class="error">${esc(loginErr)}</p>` : ''}
+    <button class="primary" type="submit" id="lf-go">Los geht's</button>
+    <p class="hint">Den Namen und die PIN bekommst du von deinen Eltern.</p></form>`;
+  if(loginErr) $('#lf').classList.add('shake');
+  const n = $('#lf-name'), p = $('#lf-pin'); (n.value ? p : n).focus();
+  $('#lf').onsubmit = async e => {
+    e.preventDefault();
+    const name = n.value.trim(), pin = p.value.trim();
+    if(!name || !pin){ loginErr = 'Bitte Name und PIN eintippen.'; loginName = name; return renderWho() }
+    $('#lf-go').disabled = true;
+    const ok = await login(name, pin, false);
+    if(!ok){ loginErr = 'Name oder PIN stimmt nicht. Nochmals!'; loginName = name; renderWho() }
+    else { loginErr = ''; loginName = '' }
+  };
 }
-
-function renderPin(){
-  const v = $('#view');
-  v.innerHTML = `<div class="pinbox" id="pinbox"><h2>Hallo ${esc(pinFor)}!</h2><p class="hint">Tippe deine PIN</p>
-    <div class="dots">${[0,1,2,3].map(i => `<i class="${i < pin.length ? 'on' : ''}"></i>`).join('')}</div>
-    ${pinErr ? `<p class="error">${esc(pinErr)}</p>` : ''}
-    <div class="pad">${[1,2,3,4,5,6,7,8,9].map(n => `<button data-k="${n}">${n}</button>`).join('')}<button data-k="back" aria-label="Löschen">⌫</button><button data-k="0">0</button><button data-k="x" aria-label="Zurück">✕</button></div></div>`;
-  if(pinErr){ $('#pinbox').classList.add('shake') }
-  v.querySelectorAll('.pad button').forEach(b => b.onclick = () => key(b.dataset.k));
-}
-async function key(k){
-  if(k === 'x'){ renderWho(); return }
-  if(k === 'back'){ pin = pin.slice(0, -1); pinErr = ''; renderPin(); return }
-  if(pin.length >= 4) return;
-  pin += k; pinErr = ''; renderPin();
-  if(pin.length === 4){
-    const ok = await login(pinFor, pin, false);
-    if(!ok){ pin = ''; pinErr = 'Diese PIN stimmt nicht. Nochmals!'; renderPin() }
-  }
-}
-document.addEventListener('keydown', e => { if(!kid && pinFor && $('#pinbox')){ if(/^[0-9]$/.test(e.key)) key(e.key); else if(e.key === 'Backspace') key('back') } });
 
 async function login(name, p, silent){
   const { data, error } = await sb.rpc('kid_login', { p_name:name, p_pin:p });
@@ -305,7 +299,7 @@ function renderSess(){
         <div class="side"><span class="qlang">${s.dir === 'de-fr' ? 'Deutsch' : 'Français'}</span><span class="qword">${esc(s.dir === 'de-fr' ? it.w.de : it.w.fr)}</span><span class="hint">Tippen zum Umdrehen</span></div>
         <div class="side back"><span class="qlang">${s.dir === 'de-fr' ? 'Français' : 'Deutsch'}</span><span class="qword">${esc(s.dir === 'de-fr' ? it.w.fr : it.w.de)}</span>${it.w.ex ? `<span class="ex">${esc(it.w.ex)}</span>` : ''}</div>
       </div></button>
-      <div class="navrow"><button class="ghost" id="prev" ${s.i ? '' : 'disabled'}>‹ Zurück</button>${hasTTS ? `<button class="speak" id="say" aria-label="Französisch anhören">${SPK}</button><button class="speak de" id="sayde" aria-label="Deutsch anhören">${DE_SPK}</button>` : ''}${ownOf(it.w.fr) ? `<button class="speak de" id="sayown" aria-label="Unsere Stimme">${MIC}<b>${esc(ownOf(it.w.fr).kid_name || 'Wir')}</b></button>` : ''}<button class="primary" id="next">${s.i === n - 1 ? 'Fertig' : 'Weiter ›'}</button></div>
+      <div class="navrow"><button class="ghost" id="prev" ${s.i ? '' : 'disabled'}>‹ Zurück</button>${hasTTS ? `<button class="speak" id="say" aria-label="Französisch anhören">${SPK}</button><button class="speak de" id="sayde" aria-label="Deutsch anhören">${DE_SPK}</button>` : ''}${ownOf(it.w.fr) ? `<button class="speak de" id="sayown" aria-label="Unsere Stimme">${MIC}<b>Unsere Stimme</b></button>` : ''}<button class="primary" id="next">${s.i === n - 1 ? 'Fertig' : 'Weiter ›'}</button></div>
     </div></div>`;
     $('#flip').onclick = () => { s.flip = !s.flip; $('#flip').classList.toggle('on', s.flip) };
     $('#prev').onclick = () => { s.i--; s.flip = false; render() };
@@ -478,11 +472,11 @@ function renderWords(){
   if(!wu.length){ v.innerHTML = `<div class="empty"><p>Noch keine Wörter eingetragen.</p></div>`; return }
   if(mySugg === null){ mySugg = []; loadMySugg() }
   const ldc = units.filter(isLdc);
-  const ownBtns = t => { const o = ownOf(t); return o ? `<button class="mini own" data-own="${esc(t)}" aria-label="Unsere Stimme: ${esc(o.kid_name || '')}">${MIC}<span>${esc(o.kid_name || 'Wir')}</span></button>` : '' };
+  const ownBtns = t => ownOf(t) ? `<button class="mini own" data-own="${esc(t)}" aria-label="Unsere Stimme">${MIC}<span>Unsere Stimme</span></button>` : '';
   const ST = { pending:['wartet auf Freigabe', ''], approved:['freigegeben', 'ok'], rejected:['nicht übernommen', 'bad'] };
   v.innerHTML = `<div class="stack-v" style="gap:14px">
     ${ldc.length ? `<div class="panel klasse"><div class="row" style="justify-content:space-between"><h2>Klassenwörter</h2>${suggForm ? '' : '<button class="primary" id="sugg-new">Neues Wort vorschlagen</button>'}</div>
-      <p class="hint">Du kennst ein Wort aus dem Französisch-Unterricht, das noch fehlt? Schlag es vor und sprich es selbst ein. Wenn die Eltern es freigeben, können alle Kinder damit üben.</p>
+      <p class="hint">Du kennst ein Wort aus dem Französisch-Unterricht, das noch fehlt? Schlag es vor und sprich es selbst ein. Wenn die Eltern es freigeben, können alle Kinder damit üben. Dein Name wird dabei nicht angezeigt.</p>
       ${suggForm ? suggFormHTML(ldc) : ''}
       ${mySugg && mySugg.length ? `<span class="label">Deine Vorschläge</span><ul class="sugg">${mySugg.map(x => `<li><b>${esc(x.fr)}</b>${x.de ? ' · ' + esc(x.de) : ''}${x.kind === 'rec' ? ' <small class="hint">(Aufnahme)</small>' : ''}<span class="tag ${ST[x.status]?.[1] || ''}">${ST[x.status]?.[0] || esc(x.status)}</span></li>`).join('')}</ul>` : ''}
     </div>` : ''}

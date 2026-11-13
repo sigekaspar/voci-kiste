@@ -250,7 +250,7 @@ function verbUnits(units){
 let OWN = null;
 async function loadOwnClips(sb){
   try{ if(cloudPromise) await cloudPromise }catch{}
-  try{ const { data } = await sb.from('own_clips').select('key,path,kid_name,updated_at'); if(data){ OWN = {}; data.forEach(r => OWN[r.key] = r) } }catch{}
+  try{ const { data } = await sb.from('own_clips').select('key,path,updated_at'); if(data){ OWN = {}; data.forEach(r => OWN[r.key] = r) } }catch{}
   return OWN;
 }
 const ownOf = t => OWN && OWN[audioKey(t)];
