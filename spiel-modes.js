@@ -99,6 +99,7 @@ function startArena(u, wi, eb = 0, li = 0){
   curView = 'game';
   const M = MODES.arena, boss = li === 4, L = boss ? { dir: 'mix', champ: 0, sx: 1.1 } : M.levels[li];
   const S = newModeState(u, wi, eb, 'arena', pickWords(u, boss ? M.bossHP[eb] + 8 : M.q[eb] + li));
+  preloadSpeech(S.items.map(x => x.w.fr));
   S.li = li; S.boss = boss; S.home = boss ? 96 : 148; S.kingHP = M.bossHP[eb]; S.kingMax = S.kingHP; S.kingHurt = 0; S.kingX = 238;
   S.foes = []; S.px = S.home; S.pstate = 'idle'; S.super = 0; S.superOn = false; S.frame = 0; S.ft = 0; S.blink = 0; S.shake = 0;
   const P = particles();
@@ -278,6 +279,7 @@ function startBakery(u, wi, eb = 0, li = 0){
   if(pool.length < 4) pool = units.filter(o => o.level === u.level).flatMap(wordsOf).filter(bakeable);
   const picked = pickWords({ ...u, words: pool.map(p => p.w) }, L.q + (boss ? 6 : 0)).map(x => ({ ...x, key: pool.find(p => p.w === x.w)?.key || x.key }));
   const S = newModeState(u, wi, eb, 'bakery', picked);
+  preloadSpeech(picked.map(x => x.w.fr));
   S.li = li; S.boss = boss; S.goal = L.q; S.baked = 0; S.rival = 0;
   S.maxMiss = 3 + [0, 1, 1, 2, 2, 3][skl('schaber')];
   const timeMul = (1 + .12 * skl('zeit')) * (1 + .12 * skl('ofen'));

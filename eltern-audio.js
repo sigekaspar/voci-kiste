@@ -14,9 +14,11 @@ function azSaveSettings(){ ls.set('vk-azure', az.remember ? az : { ...az, key:''
 const xmlEsc = s => String(s).replace(/[<>&'"]/g, c => ({ '<':'&lt;', '>':'&gt;', '&':'&amp;', "'":'&apos;', '"':'&quot;' }[c]));
 async function sha12(s){ const b = await crypto.subtle.digest('SHA-1', new TextEncoder().encode(s)); return [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, '0')).join('').slice(0, 12) }
 
+let azNoSilence = false; // falls Azure die Pausen-Angabe nicht kennt
 async function azureTTS(text){
   const lang = az.voice.slice(0, 5);
-  const ssml = `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="${lang}"><voice name="${az.voice}"><prosody rate="${az.rate}">${xmlEsc(speakable(text))}</prosody></voice></speak>`;
+  const sil = azNoSilence ? '' : '<mstts:silence type="Leading-exact" value="20ms"/><mstts:silence type="Tailing-exact" value="120ms"/>';
+  const ssml = `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xmlns:mstts="https://www.w3.org/2001/mstts" xml:lang="${lang}"><voice name="${az.voice}">${sil}<prosody rate="${az.rate}">${xmlEsc(speakable(text))}</prosody></voice></speak>`;
   let r;
   try{
     r = await fetch(`https://${az.region.trim().toLowerCase()}.tts.speech.microsoft.com/cognitiveservices/v1`, {
@@ -24,6 +26,7 @@ async function azureTTS(text){
   }catch(e){ throw Object.assign(new Error('Azure ist nicht erreichbar. Stimmt die Region (z. B. switzerlandnorth)?'), { fatal:true }) }
   if(r.status === 429) throw Object.assign(new Error('Zu viele Anfragen, kurze Pause …'), { retry:true });
   if(r.status === 401 || r.status === 403) throw Object.assign(new Error('Der Schlüssel wird nicht akzeptiert. Bitte KEY 1 und Region prüfen.'), { fatal:true });
+  if(r.status === 400 && !azNoSilence){ azNoSilence = true; return azureTTS(text) }
   if(r.status === 400) throw new Error('Azure kennt diese Stimme in dieser Region nicht oder der Text ist ungültig.');
   if(!r.ok) throw new Error('Azure-Fehler ' + r.status);
   return await r.blob();
@@ -72,6 +75,9 @@ async function renderAudio(){
     </div>
     <div class="panel"><h2>Aufnahmen erzeugen</h2>
       <p><b>${done}</b> von <b>${audioTexts.length}</b> Texten haben schon Aufnahmen mit dieser Stimme.</p>
+      ${(() => { const c = { old:0, a:0, dev:0 }; audioTexts.forEach(t => { const s = status(t)[0]; if(c[s] !== undefined) c[s]++ });
+        return c.old + c.a + c.dev ? `<p class="hint">Noch nicht mit dieser Stimme: ${c.old ? c.old + ' mit einer anderen Azure-Stimme, ' : ''}${c.a ? c.a + ' mit der alten Stimme A, ' : ''}${c.dev ? c.dev + ' nur mit der Gerätestimme' : ''}`.replace(/, $/, '') + '.</p>' : '<p class="hint">Alle Texte laufen mit dieser Stimme.</p>' })()}
+      <div class="row"><button class="ghost" id="az-check">Aufnahmen prüfen</button><span class="hint" id="az-check-res"></span></div>
       <div class="bar"><i id="az-bar" style="width:${audioTexts.length ? done / audioTexts.length * 100 : 0}%"></i></div>
       <p class="hint" id="az-prog">${gen ? 'Läuft …' : missing.length ? `Für die fehlenden ${missing.length} Texte braucht es etwa ${mmss(missing.length * AZ_GAP / 1000)}, weil die Gratisstufe nur rund 20 Aufnahmen pro Minute erlaubt. Lassen Sie die Seite so lange offen. Sie können jederzeit stoppen und später weitermachen.` : 'Alles erzeugt.'}</p>
       <div class="row">
@@ -96,6 +102,18 @@ async function renderAudio(){
   document.querySelectorAll('[data-regen]').forEach(b => b.onclick = async () => { if(!need()) return; b.disabled = true; b.textContent = '…';
     try{ const blob = await azureTTS(b.dataset.regen); await storeClip(b.dataset.regen, blob); speak(b.dataset.regen); toast('Neu erzeugt') }catch(e){ err(e.message) } renderAudio() });
   const stop = $('#az-stop'); if(stop) stop.onclick = () => { if(gen) gen.stop = true };
+  $('#az-check').onclick = async () => {
+    const btn = $('#az-check'), res = $('#az-check-res'); btn.disabled = true;
+    const rows = Object.values(CLOUD || {}); const broken = []; let n = 0;
+    for(let i = 0; i < rows.length; i += 8){
+      await Promise.all(rows.slice(i, i + 8).map(async r => { try{ const x = await fetch(cloudURL(r), { method:'HEAD', cache:'no-store' }); if(!x.ok) broken.push(r.key) }catch{ broken.push(r.key) } n++ }));
+      res.textContent = `${n} von ${rows.length} geprüft …`;
+    }
+    btn.disabled = false;
+    if(!broken.length){ res.textContent = `Alle ${rows.length} Azure-Aufnahmen sind abrufbar.`; return }
+    res.innerHTML = `${broken.length} Aufnahmen sind nicht abrufbar. <button class="ghost" id="az-fix">Diese neu erzeugen</button>`;
+    $('#az-fix').onclick = () => { if(!need()) return; generate(audioTexts.filter(t => broken.includes(t.key))) };
+  };
   const run = all => { if(!need()) return; err(''); generate(all ? audioTexts.slice() : audioTexts.filter(t => status(t)[0] !== 'az')) };
   const m = $('#az-missing'); if(m) m.onclick = () => run(false);
   const al = $('#az-all'); if(al) al.onclick = () => run(true);

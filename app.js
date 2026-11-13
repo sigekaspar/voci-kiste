@@ -154,6 +154,7 @@ function start(kind){
   const now = Date.now();
   sess = { kind, how: kind === 'test' && how === 'choice' ? 'write' : how, dir, items, i:0, res:[], requeued:new Set(), answered:null, flip:false, pool:ws,
            units:[...sel], startedAt:new Date(now).toISOString(), last:now, secs:0, steps:0, logged:false };
+  preloadSpeech(items.flatMap(x => [x.w.fr, x.w.ex]));
   render(); window.scrollTo({ top:0 });
 }
 function tick(){ const now = Date.now(); sess.secs += Math.min(IDLE_CAP, (now - sess.last) / 1000); sess.last = now; sess.steps++ }
@@ -286,6 +287,7 @@ function startGram(){
   const u = gUnits().find(x => x.id === gUnit); if(!u) return;
   const items = shuffle((u.grammar.tasks || []).filter(t => hasTTS || t.t !== 'l')).slice(0, 10).map(t => ({ g:t, w:{ fr:filled(t), de:t.de || '' }, key:'g|' + u.id }));
   const now = Date.now();
+  preloadSpeech(items.flatMap(x => [x.w.fr, x.g.say]));
   sess = { kind:'grammar', items, i:0, res:[], requeued:new Set(), answered:null, units:[u.id], startedAt:new Date(now).toISOString(), last:now, secs:0, steps:0, logged:false };
   render(); window.scrollTo({ top:0 });
 }

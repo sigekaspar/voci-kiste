@@ -336,6 +336,7 @@ function startRun(u, li, wi, eb = 0){
   const E = EBENEN[eb], th = ART.THEMES[wi % ART.THEMES.length];
   const frde = eb === 0 ? li < 2 : eb === 1 ? li % 2 === 0 : null; // Meister: gemischt
   const items = pickWords(u, E.q);
+  preloadSpeech(items.map(x => x.w.fr));
   const maxH = Math.max(1, CFG.hearts + E.hearts + [0, 1, 1, 2, 2, 3][skl('herz')]);
   const S = { u, li, wi, eb, E, th, frdeMode: frde, frde: frde ?? true, items, qi: -1, hearts: maxH, maxH, shields: [0, 1, 1, 2, 2, 3][skl('schild')], jokers: [0, 1, 1, 2, 2, 3][skl('joker')], trail: [], tt: 0, combo: 0, errors: 0, correct: 0, coins: 0, secs: 0, lastAct: Date.now(), started: new Date().toISOString(),
     phase: 'run', t: 0, off: 0, cx: 999, py: 0, vy: 0, choice: null, opts: [], ansSlot: -1, crumble: 0, frame: 0, ft: 0, blink: 0, pDropY: 0 };
@@ -503,6 +504,7 @@ function startBoss(u, wi, eb = 0){
   curView = 'game';
   const E = EBENEN[eb], th = ART.THEMES[wi % ART.THEMES.length];
   const items = pickWords(u, E.bossHP + 6);
+  preloadSpeech(items.map(x => x.w.fr));
   const maxH = Math.max(1, CFG.hearts + E.hearts + [0, 1, 1, 2, 2, 3][skl('herz')]);
   const bossTime = E.bossTime * (1 + .12 * skl('zeit'));
   const S = { u, li: 4, wi, eb, E, th, items, qi: -1, hp: E.bossHP, maxHP: E.bossHP, hearts: maxH, maxH, jokers: [0, 1, 1, 2, 2, 3][skl('joker')], combo: 0, errors: 0, correct: 0, coins: 0, secs: 0, lastAct: Date.now(), started: new Date().toISOString(), t: 0, charge: 0, shots: [], hurt: 0, shake: 0, phurt: 0, phase: 'fight' };

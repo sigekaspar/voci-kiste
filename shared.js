@@ -23,7 +23,7 @@ function shuffle(a){ for(let i = a.length - 1; i > 0; i--){ const j = Math.rando
 const hasSynth = 'speechSynthesis' in window;
 const hasTTS = true;
 let AUDIO = null, curAudio = null;
-fetch('audio/index.json', { cache:'no-cache' }).then(r => r.ok ? r.json() : null).then(j => { AUDIO = j }).catch(() => {});
+const localPromise = fetch('audio/index.json', { cache:'no-cache' }).then(r => r.ok ? r.json() : null).then(j => { AUDIO = j }).catch(() => {});
 const audioKey = t => String(t || '').replace(/[’`´]/g, "'").replace(/\s+/g, ' ').trim();
 function bestVoice(){
   const vs = speechSynthesis.getVoices().filter(v => /^fr/i.test(v.lang));
@@ -40,15 +40,18 @@ function synth(t){
   }catch{}
 }
 // Azure-Aufnahmen aus Supabase (von der Elternseite erzeugt) haben Vorrang
-let CLOUD = null, CLOUD_BASE = '';
-async function loadCloudAudio(sb){
-  try{
-    const C = window.VOCI_CONFIG || {};
-    CLOUD_BASE = String(C.url || '').trim().replace(/\/(rest|auth)\/v1\/?.*$/, '').replace(/\/+$/, '') + '/storage/v1/object/public/audio/';
-    const { data } = await sb.from('audio_clips').select('key,path,voice,updated_at').limit(5000);
-    if(data){ CLOUD = {}; data.forEach(r => CLOUD[r.key] = r) }
-  }catch{}
-  return CLOUD;
+let CLOUD = null, CLOUD_BASE = '', cloudPromise = null;
+function loadCloudAudio(sb){
+  cloudPromise = (async () => {
+    try{
+      const C = window.VOCI_CONFIG || {};
+      CLOUD_BASE = String(C.url || '').trim().replace(/\/(rest|auth)\/v1\/?.*$/, '').replace(/\/+$/, '') + '/storage/v1/object/public/audio/';
+      const { data } = await sb.from('audio_clips').select('key,path,voice,updated_at').limit(5000);
+      if(data){ CLOUD = {}; data.forEach(r => CLOUD[r.key] = r) }
+    }catch{}
+    return CLOUD;
+  })();
+  return cloudPromise;
 }
 const cloudURL = r => CLOUD_BASE + r.path + '?v=' + Date.parse(r.updated_at);
 // Alle Texte, die vorgelesen werden können (Wörter, Beispielsätze, Grammatik)
@@ -70,22 +73,48 @@ function speakable(t){
   s = s.replace(/\s*,\s*(,\s*)+/g, ', ').replace(/\s+/g, ' ').trim().replace(/^[ ,]+|[ ,]+$/g, '');
   return s || String(t);
 }
-function speak(t){
-  const c = CLOUD && CLOUD[audioKey(t)];
-  if(c){ try{ if(curAudio) curAudio.pause(); curAudio = new Audio(cloudURL(c)); curAudio.play().catch(() => speakLocal(t)); return }catch{} }
-  speakLocal(t);
+// Abspielen: Aufnahmen werden einmal geladen und wiederverwendet (schneller Start)
+const AUDIO_CACHE = new Map();
+function audioEl(url){
+  let a = AUDIO_CACHE.get(url);
+  if(!a){ a = new Audio(); a.preload = 'auto'; a.src = url; AUDIO_CACHE.set(url, a);
+    if(AUDIO_CACHE.size > 400) AUDIO_CACHE.delete(AUDIO_CACHE.keys().next().value) }
+  return a;
 }
-function speakLocal(t){
-  const f = AUDIO && AUDIO[audioKey(t)];
-  if(f){
-    try{
-      if(curAudio) curAudio.pause();
-      curAudio = new Audio('audio/' + f);
-      curAudio.play().catch(() => synth(t));
-      return;
-    }catch{}
+function clipUrls(t){
+  const k = audioKey(t), c = CLOUD && CLOUD[k], f = AUDIO && AUDIO[k];
+  return { cloud: c ? cloudURL(c) : null, local: f ? 'audio/' + f : null };
+}
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+let speakSeq = 0;
+function stopSpeech(){ try{ if(curAudio){ curAudio.pause() } }catch{} try{ if(hasSynth) speechSynthesis.cancel() }catch{} }
+async function speak(t){
+  const my = ++speakSeq;
+  stopSpeech();
+  // Neue Aufnahmen abwarten, falls die Liste noch lädt (höchstens 1,5 Sekunden)
+  if(!CLOUD && cloudPromise) await Promise.race([cloudPromise, sleep(1500)]);
+  if(!AUDIO) await Promise.race([localPromise, sleep(600)]);
+  if(my !== speakSeq) return;           // inzwischen wurde ein anderes Wort angefordert
+  const { cloud, local } = clipUrls(t);
+  const order = [cloud, local].filter(Boolean);
+  for(const url of order){
+    if(my !== speakSeq) return;
+    const a = audioEl(url); curAudio = a;
+    try{ a.currentTime = 0 }catch{}
+    try{ await a.play(); return }
+    catch(e){
+      if(my !== speakSeq || e.name === 'AbortError') return; // abgebrochen, weil ein neues Wort kam: nichts nachholen
+      console.warn('Aufnahme konnte nicht abgespielt werden:', url, e.name);
+      AUDIO_CACHE.delete(url);
+      if(e.name === 'NotAllowedError') return;               // Browser erlaubt noch keinen Ton: nicht mit anderer Stimme nachholen
+    }
   }
-  synth(t);
+  if(my === speakSeq && !order.length) synth(t);
+}
+// Aufnahmen einer Runde vorab laden, damit sie sofort starten
+async function preloadSpeech(texts){
+  if(!CLOUD && cloudPromise) await Promise.race([cloudPromise, sleep(2000)]);
+  [...new Set(texts.filter(Boolean))].slice(0, 40).forEach(t => { const { cloud, local } = clipUrls(t); const u = cloud || local; if(u) audioEl(u) });
 }
 if(hasSynth) try{ speechSynthesis.getVoices(); speechSynthesis.onvoiceschanged = () => {} }catch{}
 
