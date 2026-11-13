@@ -47,7 +47,7 @@ function modeMult(S){ return Math.min(CFG.comboMax, 1 + Math.floor(S.combo / CFG
 function comboText(S){ const el = $('#combo'); el.textContent = S.combo >= 2 ? `Kombo ${S.combo} · ×${modeMult(S)}` : ''; el.classList.remove('big'); void el.offsetWidth; if(S.combo >= 2) el.classList.add('big') }
 function rewardRight(S, box, base, xpBase, x, y){
   S.combo++; S.correct++; G.totals.correct++; prog.stars = (prog.stars || 0) + 1; G.totals.bestCombo = Math.max(G.totals.bestCombo, S.combo);
-  const gain = Math.round(base * modeMult(S) * S.E.reward * (1 + .15 * skl('magnet'))); S.coins += gain; addCoins(gain);
+  rfOf(S, mKey(S.u.id, S.mode, S.eb, S.li)); const gain = coinGain(base, modeMult(S), S); S.coins += gain; addCoins(gain);
   addXP(Math.round(xpBase * S.E.reward * (1 + .12 * skl('weise'))));
   floatText(box, '+' + gain, x, y, '#fff3b0');
   if(S.combo % CFG.comboStep === 0) sfx.combo(modeMult(S));
@@ -68,9 +68,12 @@ function endMode(S, quit){
   const boss = S.li === 4, k = mKey(S.u.id, S.mode, S.eb, S.li);
   const won = boss ? !!S.bossWon : S.hearts > 0;
   const stars = quit || !won ? 0 : S.errors === 0 ? 3 : S.errors <= 2 ? 2 : 1;
-  const firstWin = boss && stars && !G.stars[k];
-  if(stars > (G.stars[k] || 0)) G.stars[k] = stars;
-  const bonus = Math.round(stars * CFG.starBonus * S.E.reward) + (boss && stars ? Math.round(CFG.bossWin * S.E.reward) : 0); if(bonus) addCoins(bonus);
+  rfOf(S, k);
+  const prev = G.stars[k] || 0, firstWin = boss && stars && !prev;
+  if(stars > prev) G.stars[k] = stars;
+  if(stars) countPlay(k, prev);
+  const bonus = Math.round(Math.max(0, stars - prev) * CFG.starBonus * S.E.reward) + (boss && stars ? Math.round(CFG.bossWin * S.E.reward * S.rf) : 0); if(bonus) addCoins(bonus);
+  const chest = firstWin; // goldene Truhe nur beim ersten Sieg
   if(boss && stars) G.totals.bosses++;
   if(boss && stars){ G.totals.modeBoss = G.totals.modeBoss || {}; G.totals.modeBoss[S.mode] = (G.totals.modeBoss[S.mode] || 0) + 1 }
   log(S, 'game'); const nb = checkBadges(); save(); hud();
@@ -86,11 +89,11 @@ function endMode(S, quit){
     ${S.mode === 'bakery' && stars ? '<canvas id="cake" width="40" height="30" style="width:160px;height:120px"></canvas>' : ''}
     <div class="gains"><span><i class="coin"></i>+${S.coins + bonus}</span><span>${S.correct} richtig</span></div>
     ${firstWin && S.eb < 2 ? `<p><b>Neue Ebene freigeschaltet:</b> ${esc(EBENEN[S.eb + 1].name)} (${EBENEN[S.eb + 1].tag}) in ${esc(M.name)}</p>` : ''}
-    ${boss && stars ? '<p>Dafür gibt es eine goldene Truhe!</p>' : ''}
+    ${chest ? '<p>Dafür gibt es eine goldene Truhe!</p>' : ''}${replayNote(S)}
     ${nb.length ? `<p><b>Neues Abzeichen:</b> ${nb.map(b => esc(b[1])).join(', ')}</p>` : ''}
     <div class="row"><button class="pbtn" id="ov-next">${stars && S.li < 4 ? (S.li === 3 ? 'Zum Boss' : 'Weiter') : 'Nochmals'}</button><button class="pbtn alt" id="ov-map">Zur Karte</button></div></div>`,
-    { '#ov-next': () => { closeOverlay(); const go = () => afterDaily(S, next); boss && stars ? openChest(S.eb ? 'eb' + S.eb : 'boss', go) : go() },
-      '#ov-map': () => { closeOverlay(); const go = () => afterDaily(S, renderMap); boss && stars ? openChest(S.eb ? 'eb' + S.eb : 'boss', go) : go() } });
+    { '#ov-next': () => { closeOverlay(); const go = () => afterDaily(S, next); chest ? openChest(S.eb ? 'eb' + S.eb : 'boss', go) : go() },
+      '#ov-map': () => { closeOverlay(); const go = () => afterDaily(S, renderMap); chest ? openChest(S.eb ? 'eb' + S.eb : 'boss', go) : go() } });
   const cake = $('#cake'); if(cake) drawCake(cake.getContext('2d'), S.correct);
 }
 
@@ -163,7 +166,7 @@ function startArena(u, wi, eb = 0, li = 0){
       leitner(x.key, true, false); G.totals.answers++;
       rewardRight(S, box, f.champ ? CFG.coin * 3 : CFG.coin * 1.4, CFG.xpCorrect, f.x / ART.W * 100, 25);
       S.super = Math.min(100, S.super + (f.champ ? 40 : 25) + 6 * skl('super'));
-      if(S.superOn){ S.superOn = false; S.foes.forEach(o => { if(o.state === 'walk'){ o.state = 'fly'; o.vx = S.boss ? 230 : (o.x < S.px ? -1 : 1) * 170; o.vy = -110; if(S.boss) o.toKing = true; P.add(o.x + 12, o.y - 10, CONFETTI, 10, 80); addCoins(5); S.coins += 5 } }); floatText(box, 'Wirbel-Attacke!', 30, 40, '#ffe27a') }
+      if(S.superOn){ S.superOn = false; S.foes.forEach(o => { if(o.state === 'walk'){ o.state = 'fly'; o.vx = S.boss ? 230 : (o.x < S.px ? -1 : 1) * 170; o.vy = -110; if(S.boss) o.toKing = true; P.add(o.x + 12, o.y - 10, CONFETTI, 10, 80); addCoins(1); S.coins += 1 } }); floatText(box, 'Wirbel-Attacke!', 30, 40, '#ffe27a') }
       else S.foes.forEach(o => { if(o !== f && o.state === 'walk') o.state = 'flee' });
       supUI();
       if(S.dir === 'de') speak(x.w.fr);

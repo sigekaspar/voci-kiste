@@ -10,6 +10,7 @@
   color-scheme:light;
 }
 *{box-sizing:border-box}
+[hidden]{display:none!important}
 html,body{margin:0;min-height:100%}
 html{background:#f3b7c6}
 body{background:linear-gradient(180deg,var(--sky1),var(--sky2));background-attachment:fixed;color:var(--ink);font-family:var(--body);font-size:17px;line-height:1.4;-webkit-tap-highlight-color:transparent}
@@ -40,6 +41,8 @@ canvas{image-rendering:pixelated;image-rendering:crisp-edges}
 .xp i{display:block;height:100%;width:0;background:var(--lav);transition:width .5s}
 .hud-coins{display:flex;align-items:center;gap:5px;font-family:var(--pixel);font-weight:700;font-size:1.25rem;font-variant-numeric:tabular-nums;padding:0 6px}
 .coin{display:inline-block;width:16px;height:16px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#fff3b0 0 20%,var(--honey) 21% 70%,var(--honey-d) 71%);border:2px solid var(--ink)}
+a.hud-btn{color:var(--ink);text-decoration:none}
+.hud-btn.home{display:inline-flex;align-items:center;gap:3px;background:var(--sky-b);font-weight:700}
 .hud-btn{font-family:var(--pixel);font-size:.95rem;border:2px solid var(--ink);border-radius:5px;background:var(--paper);padding:4px 9px;box-shadow:0 2px 0 var(--ink)}
 .hud-btn.icon{width:36px;padding:4px 0}
 
@@ -89,6 +92,8 @@ canvas{image-rendering:pixelated;image-rendering:crisp-edges}
 .say svg{width:24px;height:24px}
 .canvasbox{position:relative;border:3px solid var(--ink);border-radius:8px;overflow:hidden;box-shadow:0 4px 0 var(--ink);background:var(--night);aspect-ratio:16/9;max-width:100%}
 .canvasbox canvas{position:absolute;inset:0;width:100%;height:100%}
+/* Spielfenster passt in die Bildschirmhöhe */
+.stage > .canvasbox{width:min(100%, max(320px, calc((100svh - 430px) * 16 / 9)));margin-inline:auto}
 .float{position:absolute;font-family:var(--pixel);font-weight:700;font-size:1.4rem;color:#fff;text-shadow:2px 2px 0 var(--ink);pointer-events:none;animation:rise 1s forwards}
 @keyframes rise{to{transform:translateY(-40px);opacity:0}}
 .answers{display:grid;grid-template-columns:1fr;gap:8px}
@@ -246,4 +251,14 @@ canvas{image-rendering:pixelated;image-rendering:crisp-edges}
 .slot{font-size:1.5rem}
 .hud-me small,.prog,.combo,.perks{letter-spacing:.01em}
 
+/* Breite Bildschirme: Spielfenster links, Frage und Antworten rechts */
+@media (min-width:900px) and (min-aspect-ratio:4/3){
+  #app{max-width:1320px}
+  .stage{display:grid;grid-template-columns:minmax(0,1fr) 330px;grid-template-rows:auto auto auto auto auto 1fr;column-gap:14px;row-gap:10px;align-items:start}
+  .stage > *{grid-column:2;min-width:0}
+  .stage > .qbar{grid-column:1 / -1}
+  .stage > .canvasbox{grid-column:1;grid-row:2 / -1;width:min(100%, calc((100svh - 190px) * 16 / 9));justify-self:center;margin:0}
+  .stage .answers{display:flex;flex-direction:column;gap:8px}
+  .stage .qword{font-size:clamp(1.4rem,2.2vw,2rem)}
+}
 @media (max-width:560px){ .hud{gap:5px} .hud-btn{font-size:.85rem;padding:3px 6px} .xp{width:64px} .mapgoals{grid-template-columns:1fr} .hud-me canvas{width:24px;height:30px} }

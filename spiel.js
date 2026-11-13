@@ -5,15 +5,18 @@ const CFG = {
   hearts: 3,              // Herzen pro Level
   speed: 34,              // Tempo der Plattformen (Pixel pro Sekunde), ≈ 8 Sekunden Bedenkzeit
   speedPerCombo: 2.5,     // schneller pro Kombo-Schritt
-  coin: 5,                // Münzen pro richtigem Wort (mal Kombo-Faktor)
+  // Tempo «gemütlich» (bei etwa 10 Minuten pro Tag): erste Mütze nach 2–3 Tagen, erste Kraft nach etwa einer Woche,
+  // Krone nach etwa 2 Monaten, alles nach einem Schuljahr
+  coin: 2,                // Münzen pro richtigem Wort (mal Kombo-Faktor)
   comboStep: 3,           // alle 3 richtigen in Folge steigt der Faktor
-  comboMax: 5,            // höchster Faktor ×5
-  starBonus: 10,          // Münzen pro Stern am Levelende
-  bossHP: 6, bossTime: 25, bossCoin: 10, bossWin: 60,
-  xpCorrect: 10, xpLevel: lvl => 100 + 40 * (lvl - 1),
+  comboMax: 3,            // höchster Faktor ×3
+  starBonus: 5,           // Münzen pro NEUEM Stern am Levelende
+  bossHP: 6, bossTime: 25, bossCoin: 4, bossWin: 30,
+  replay: [1, .5, .25, .1], // Münzen beim 1., 2., 3., ab 4. Durchgang eines schon geschafften Levels
+  xpCorrect: 4, xpLevel: lvl => 300 + 150 * (lvl - 1),
   dailySecs: 600,         // Tagesziel: 10 Minuten aktives Spielen
   teamPerKid: 150,        // Teamziel pro Kind und Woche (richtige Antworten, wird auf dem Server gerechnet)
-  dupCoins: 25,           // Münzen für ein doppeltes Wesen
+  dupCoins: 20,           // Münzen für ein doppeltes Wesen
   rarity: [70, 25, 5], rarityBoss: [45, 40, 15],
   idleCap: 60
 };
@@ -26,36 +29,37 @@ const EBENEN = [
 // Kräfte: je 5 Stufen
 const SKILLS = [
   // [id, Name, Beschreibung, Preise Stufe 1–5, Wirkung, Gilt für]
-  ['herz', 'Extra-Herz', 'Mehr Herzen in jedem Level', [120, 260, 450, 700, 1000], l => `${[0, 1, 1, 2, 2, 3][l]} Herz(en) mehr`, 'all'],
-  ['zeit', 'Zeitlupe', 'Mehr Zeit: langsamere Plattformen und Gegner, längere Ofenuhr', [80, 180, 320, 500, 750], l => `${l * 7}% mehr Zeit`, 'all'],
-  ['magnet', 'Münzmagnet', 'Mehr Münzen pro Wort', [100, 220, 380, 600, 900], l => `+${l * 15}% Münzen`, 'all'],
-  ['weise', 'Weisheit', 'Mehr XP für jedes Wort', [80, 170, 300, 480, 700], l => `+${l * 12}% XP`, 'all'],
-  ['schild', 'Kombo-Schild', 'Ein Fehler zerstört die Kombo nicht', [150, 300, 500, 750, 1100], l => `${[0, 1, 1, 2, 2, 3][l]} Schild(e) pro Level`, 'all'],
-  ['klee', 'Glücksklee', 'Seltenere Wesen in Truhen', [150, 320, 520, 780, 1100], l => `+${l * 6}% Glück`, 'all'],
-  ['joker', 'Sprung-Joker', 'Streicht eine falsche Plattform weg, beim Wolken-Boss gibt er die ersten Buchstaben', [90, 200, 350, 550, 800], l => `${[0, 1, 1, 2, 2, 3][l]} Joker pro Level`, 'run'],
-  ['stern', 'Sternwurf', 'Chance auf Doppel-Treffer beim Wolken-Boss', [120, 250, 420, 650, 950], l => `${l * 12}% Chance`, 'run'],
-  ['ajoker', 'Arena-Joker', 'Jagt einen falschen Gegner davon', [90, 200, 350, 550, 800], l => `${[0, 1, 1, 2, 2, 3][l]} Joker pro Level`, 'arena'],
-  ['kraft', 'Kraftschlag', 'Champions fallen schneller, Doppel-Treffer beim Grummel-König', [120, 250, 420, 650, 950], l => `${l * 12}% Chance`, 'arena'],
-  ['super', 'Super-Ladung', 'Die Super-Leiste füllt sich schneller', [100, 220, 380, 600, 900], l => `+${l * 6}% pro Treffer`, 'arena'],
-  ['rezept', 'Rezeptbuch', 'Zeigt den nächsten richtigen Buchstaben', [90, 200, 350, 550, 800], l => `${[0, 1, 1, 2, 2, 3][l]} Tipp(s) pro Level`, 'bakery'],
-  ['ofen', 'Grosser Ofen', 'Mehr Zeit in der Bäckerei und beim Backwettbewerb', [100, 220, 380, 600, 900], l => `+${l * 12}% Ofenzeit`, 'bakery'],
-  ['schaber', 'Teigschaber', 'Mehr Fehler pro Wort erlaubt', [120, 250, 420, 650, 950], l => `${3 + [0, 1, 1, 2, 2, 3][l]} Fehler pro Wort`, 'bakery']
+  ['herz', 'Extra-Herz', 'Mehr Herzen in jedem Level', [1150, 1260, 1440, 1670, 1950], l => `${[0, 1, 1, 2, 2, 3][l]} Herz(en) mehr`, 'all'],
+  ['zeit', 'Zeitlupe', 'Mehr Zeit: langsamere Plattformen und Gegner, längere Ofenuhr', [1000, 1100, 1250, 1450, 1700], l => `${l * 7}% mehr Zeit`, 'all'],
+  ['magnet', 'Münzmagnet', 'Mehr Münzen pro Wort', [1100, 1210, 1380, 1600, 1870], l => `+${l * 15}% Münzen`, 'all'],
+  ['weise', 'Weisheit', 'Mehr XP für jedes Wort', [1000, 1100, 1250, 1450, 1700], l => `+${l * 12}% XP`, 'all'],
+  ['schild', 'Kombo-Schild', 'Ein Fehler zerstört die Kombo nicht', [1200, 1320, 1500, 1740, 2040], l => `${[0, 1, 1, 2, 2, 3][l]} Schild(e) pro Level`, 'all'],
+  ['klee', 'Glücksklee', 'Seltenere Wesen in Truhen', [1200, 1320, 1500, 1740, 2040], l => `+${l * 6}% Glück`, 'all'],
+  ['joker', 'Sprung-Joker', 'Streicht eine falsche Plattform weg, beim Wolken-Boss gibt er die ersten Buchstaben', [1000, 1100, 1250, 1450, 1700], l => `${[0, 1, 1, 2, 2, 3][l]} Joker pro Level`, 'run'],
+  ['stern', 'Sternwurf', 'Chance auf Doppel-Treffer beim Wolken-Boss', [1100, 1210, 1380, 1600, 1870], l => `${l * 12}% Chance`, 'run'],
+  ['ajoker', 'Arena-Joker', 'Jagt einen falschen Gegner davon', [1000, 1100, 1250, 1450, 1700], l => `${[0, 1, 1, 2, 2, 3][l]} Joker pro Level`, 'arena'],
+  ['kraft', 'Kraftschlag', 'Champions fallen schneller, Doppel-Treffer beim Grummel-König', [1100, 1210, 1380, 1600, 1870], l => `${l * 12}% Chance`, 'arena'],
+  ['super', 'Super-Ladung', 'Die Super-Leiste füllt sich schneller', [1050, 1160, 1310, 1520, 1780], l => `+${l * 6}% pro Treffer`, 'arena'],
+  ['rezept', 'Rezeptbuch', 'Zeigt den nächsten richtigen Buchstaben', [1000, 1100, 1250, 1450, 1700], l => `${[0, 1, 1, 2, 2, 3][l]} Tipp(s) pro Level`, 'bakery'],
+  ['ofen', 'Grosser Ofen', 'Mehr Zeit in der Bäckerei und beim Backwettbewerb', [1050, 1160, 1310, 1520, 1780], l => `+${l * 12}% Ofenzeit`, 'bakery'],
+  ['schaber', 'Teigschaber', 'Mehr Fehler pro Wort erlaubt', [1100, 1210, 1380, 1600, 1870], l => `${3 + [0, 1, 1, 2, 2, 3][l]} Fehler pro Wort`, 'bakery']
 ];
+const SKILL_LVL = [2, 4, 7, 10, 14]; // Spieler-Level für Stufe 1–5 einer Kraft
 const SKILL_GROUPS = [['all', 'Für alle Spiele'], ['run', 'Wort-Sprung'], ['arena', 'Wort-Arena'], ['bakery', 'Bäckerei']];
 const RANKS = [[1, 'Petit pois'], [3, 'Escargot'], [5, 'Explorateur'], [8, 'Chevalier'], [12, 'Champion'], [16, 'Héros'], [20, 'Légende'], [25, 'Majesté des mots']];
 const rankOf = lvl => RANKS.filter(r => lvl >= r[0]).pop()[1];
-const COLOR_P = { berry: 0, mint: 40, sky: 40, lav: 60, honey: 60, cocoa: 80, night: 120, rose: 80, sun: 100, forest: 120, ocean: 140, snow: 160, coal: 180, gold: 400, rainbow: 600 };
-const COLOR_L = { gold: 10, rainbow: 15 };
-const HAT_P = [['flower', 50, 1], ['cap', 70, 1], ['flowercrown', 90, 2], ['beret', 100, 2], ['bunny', 120, 3], ['cat', 120, 3], ['chef', 140, 4], ['straw', 150, 4], ['party', 170, 5], ['headphones', 200, 6], ['pirate', 220, 6], ['helmet', 240, 7], ['propeller', 260, 8], ['viking', 300, 9], ['tophat', 320, 10], ['crown', 400, 12], ['wizard', 450, 14], ['halo', 600, 18]];
-const FACE_P = [['glasses', 80, 2], ['sunglasses', 150, 4], ['hearts', 200, 6], ['mustache', 250, 8]];
-const TRAIL_P = [['leaves', 100, 2], ['bubbles', 140, 3], ['sparkle', 180, 4], ['hearts', 220, 5], ['snow', 260, 7], ['stars', 320, 9], ['fire', 400, 11], ['rainbow', 700, 15]];
+const COLOR_P = { berry: 0, mint: 250, sky: 250, lav: 300, honey: 300, cocoa: 350, night: 450, rose: 350, sun: 400, forest: 450, ocean: 500, snow: 550, coal: 600, gold: 1500, rainbow: 2200 };
+const COLOR_L = { mint: 2, sky: 2, lav: 3, honey: 3, cocoa: 4, rose: 4, sun: 5, night: 6, forest: 6, ocean: 7, snow: 8, coal: 9, gold: 12, rainbow: 16 };
+const HAT_P = [['flower', 500, 1], ['cap', 600, 2], ['flowercrown', 650, 2], ['beret', 750, 3], ['bunny', 850, 3], ['cat', 850, 4], ['chef', 950, 4], ['straw', 1000, 5], ['party', 1100, 5], ['headphones', 1250, 6], ['pirate', 1350, 7], ['helmet', 1450, 7], ['propeller', 1550, 8], ['viking', 1750, 9], ['tophat', 1950, 10], ['crown', 3000, 12], ['wizard', 3300, 14], ['halo', 4000, 18]];
+const FACE_P = [['glasses', 600, 3], ['sunglasses', 900, 5], ['hearts', 1100, 7], ['mustache', 1300, 9]];
+const TRAIL_P = [['leaves', 700, 3], ['bubbles', 850, 4], ['sparkle', 1000, 5], ['hearts', 1150, 6], ['snow', 1300, 8], ['stars', 1500, 10], ['fire', 1800, 12], ['rainbow', 2800, 16]];
 const SHOP = [
   ...Object.entries(ART.COLORS).map(([k, c]) => ({ id: 'color_' + k, kind: 'color', key: k, name: c[2], price: COLOR_P[k] ?? 100, lvl: COLOR_L[k] || 1 })),
   ...HAT_P.map(([k, p, l]) => ({ id: 'hat_' + k, kind: 'hat', key: k, name: ART.HATS[k].name, price: p, lvl: l })),
   ...FACE_P.map(([k, p, l]) => ({ id: 'face_' + k, kind: 'face', key: k, name: ART.FACES[k].name, price: p, lvl: l })),
   ...TRAIL_P.map(([k, p, l]) => ({ id: 'trail_' + k, kind: 'trail', key: k, name: ART.TRAILS[k].name, price: p, lvl: l }))
 ];
-const CHESTS = [['wood', 'Holztruhe', 150, 'Ein zufälliges Wesen', 'normal'], ['gold', 'Goldtruhe', 450, 'Bessere Chancen auf seltene Wesen', 'boss']];
+const CHESTS = [['wood', 'Holztruhe', 600, 'Ein zufälliges Wesen', 'normal'], ['gold', 'Goldtruhe', 1800, 'Bessere Chancen auf seltene Wesen', 'boss']];
 const BADGES = [
   ['first', 'Erster Schritt', 'Ein Level geschafft', G => Object.keys(G.stars).length >= 1],
   ['perfect', 'Perfekt!', 'Ein Level mit 3 Sternen', G => Object.values(G.stars).some(s => s >= 3)],
@@ -117,8 +121,8 @@ const sfx = {
 function setMute(m){ muted = m; ls.set('vk-mute', m); $('#btn-mute').innerHTML = m ? '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#3b2d3f" stroke-width="2.4"><path d="M11 5 6 9H3v6h3l5 4z" fill="#3b2d3f"/><path d="M16 9l5 6M21 9l-5 6"/></svg>' : SPK2.replace('<svg ', '<svg width="22" height="22" '); $('#btn-mute').setAttribute('aria-label', m ? 'Ton an' : 'Ton aus') }
 
 /* ---------- Spielstand ---------- */
-function freshGame(){ return { coins: 0, xp: 0, stars: {}, skills: {}, ebSel: {}, owned: { color_berry: 1 }, look: { color: 'berry', hat: null, pet: null, face: null, trail: null }, cards: {}, badges: {}, daily: { day: '', secs: 0, done: false, count: 0 }, totals: { correct: 0, answers: 0, bestCombo: 0, bosses: 0 }, team: { week: '', claimed: false }, group: null } }
-function mergeGame(g){ const f = freshGame(); g = g || {}; return { ...f, ...g, look: { ...f.look, ...(g.look || {}) }, daily: { ...f.daily, ...(g.daily || {}) }, totals: { ...f.totals, ...(g.totals || {}) }, team: { ...f.team, ...(g.team || {}) }, owned: { ...f.owned, ...(g.owned || {}) }, stars: g.stars || {}, cards: g.cards || {}, badges: g.badges || {}, skills: g.skills || {}, ebSel: g.ebSel || {} } }
+function freshGame(){ return { coins: 0, xp: 0, stars: {}, skills: {}, ebSel: {}, plays: {}, owned: { color_berry: 1 }, look: { color: 'berry', hat: null, pet: null, face: null, trail: null }, cards: {}, badges: {}, daily: { day: '', secs: 0, done: false, count: 0 }, totals: { correct: 0, answers: 0, bestCombo: 0, bosses: 0 }, team: { week: '', claimed: false }, group: null } }
+function mergeGame(g){ const f = freshGame(); g = g || {}; return { ...f, ...g, look: { ...f.look, ...(g.look || {}) }, daily: { ...f.daily, ...(g.daily || {}) }, totals: { ...f.totals, ...(g.totals || {}) }, team: { ...f.team, ...(g.team || {}) }, owned: { ...f.owned, ...(g.owned || {}) }, stars: g.stars || {}, cards: g.cards || {}, badges: g.badges || {}, skills: g.skills || {}, ebSel: g.ebSel || {}, plays: g.plays || {} } }
 const skl = id => (G && G.skills[id]) || 0;
 function migrateStars(g){ // alte Stationen (Arena = 5, Bäckerei = 6) werden zu Level 1 des Modus
   Object.keys(g.stars).forEach(k => { const p = k.split(':'); const last = +p[p.length - 1]; if(last !== 5 && last !== 6) return;
@@ -129,6 +133,13 @@ function migrateStars(g){ // alte Stationen (Arena = 5, Bäckerei = 6) werden zu
   return g;
 }
 const sKey = (uid, eb, i) => eb ? `${uid}:${eb}:${i}` : `${uid}:${i}`;
+// Wiederholungen: ein schon geschafftes Level bringt weniger Münzen, damit sich das nächste Level mehr lohnt
+const playsOf = k => Math.max((G.plays && G.plays[k]) || 0, G.stars[k] ? 1 : 0);
+const replayF = k => CFG.replay[Math.min(CFG.replay.length - 1, playsOf(k))];
+function rfOf(S, k){ if(S.rf === undefined){ S.rk = k; S.rf = replayF(k) } return S.rf }
+function countPlay(k, prev){ G.plays = G.plays || {}; G.plays[k] = Math.max(G.plays[k] || 0, prev ? 1 : 0) + 1 }
+const coinGain = (base, m, S) => Math.max(1, Math.round(base * m * S.E.reward * (1 + .15 * skl('magnet')) * (S.rf ?? 1)));
+function replayNote(S){ return S.rf < 1 ? `<p class="hint">Dieses Level kennst du schon: nur noch ${Math.round(S.rf * 100)}% Münzen. Neue Levels bringen mehr!</p>` : '' }
 const ebOpen = (uid, eb) => eb === 0 || (G.stars[sKey(uid, eb - 1, 4)] || 0) >= 1;
 function lvlOf(xp){ let l = 1, need = CFG.xpLevel(1); while(xp >= need){ xp -= need; l++; need = CFG.xpLevel(l) } return { lvl: l, cur: xp, need } }
 function worldsFull(g){ return units.filter(u => [0, 1, 2, 3, 4].every(i => (g.stars[u.id + ':' + i] || 0) >= 3)).length }
@@ -211,6 +222,7 @@ function hud(){
   avatarCanvas($('#hud-ava'), G.look);
 }
 $('#hud-me').onclick = () => { sfx.click(); stopLoop(); renderMap() };
+$('#btn-home').onclick = async e => { e.preventDefault(); stopLoop(); if(G) dirty = true; try{ await Promise.race([flushSave(), new Promise(r => setTimeout(r, 2500))]) }catch{} location.href = 'index.html' };
 $('#btn-shop').onclick = () => { sfx.click(); stopLoop(); renderShop() };
 $('#btn-album').onclick = () => { sfx.click(); stopLoop(); renderAlbum() };
 $('#btn-badges').onclick = () => { sfx.click(); stopLoop(); renderBadges() };
@@ -340,6 +352,7 @@ function startRun(u, li, wi, eb = 0){
   const maxH = Math.max(1, CFG.hearts + E.hearts + [0, 1, 1, 2, 2, 3][skl('herz')]);
   const S = { u, li, wi, eb, E, th, frdeMode: frde, frde: frde ?? true, items, qi: -1, hearts: maxH, maxH, shields: [0, 1, 1, 2, 2, 3][skl('schild')], jokers: [0, 1, 1, 2, 2, 3][skl('joker')], trail: [], tt: 0, combo: 0, errors: 0, correct: 0, coins: 0, secs: 0, lastAct: Date.now(), started: new Date().toISOString(),
     phase: 'run', t: 0, off: 0, cx: 999, py: 0, vy: 0, choice: null, opts: [], ansSlot: -1, crumble: 0, frame: 0, ft: 0, blink: 0, pDropY: 0 };
+  rfOf(S, sKey(u.id, eb, li));
   const P = particles();
   $('#screen').innerHTML = `<section class="stage">
     <div class="qbar"><div class="hearts" id="hearts"></div><span class="combo" id="combo"></span><span class="prog" id="prog"></span><span class="perks" id="perks"></span><button class="hud-btn" id="joker" hidden>Joker</button><button class="hud-btn" id="quit">Karte</button></div>
@@ -394,7 +407,7 @@ function startRun(u, li, wi, eb = 0){
     if(ok){
       S.combo++; S.correct++; G.totals.correct++; prog.stars = (prog.stars || 0) + 1;
       G.totals.bestCombo = Math.max(G.totals.bestCombo, S.combo);
-      const m = mult(), gain = Math.round(CFG.coin * m * S.E.reward * (1 + .15 * skl('magnet'))); S.coins += gain; addCoins(gain); addXP(Math.round(CFG.xpCorrect * S.E.reward * (1 + .12 * skl('weise'))));
+      const m = mult(), gain = coinGain(CFG.coin, m, S); S.coins += gain; addCoins(gain); addXP(Math.round(CFG.xpCorrect * S.E.reward * (1 + .12 * skl('weise'))));
       floatText(box, '+' + gain, 18, 22, '#fff3b0');
       P.add(PX + 12, PLAT[S.choice] - 16, CONFETTI, 18, 80);
       sfx.coin(); if(S.combo && S.combo % CFG.comboStep === 0){ sfx.combo(m); floatText(box, '×' + m + '!', 40, 30, '#ffd0e0') }
@@ -471,7 +484,8 @@ function endRun(S, quit){
   const stars = quit || S.hearts <= 0 ? 0 : S.errors === 0 ? 3 : S.errors <= 2 ? 2 : 1;
   const prev = G.stars[k] || 0;
   if(stars > prev) G.stars[k] = stars;
-  const bonus = Math.round(stars * CFG.starBonus * S.E.reward); if(bonus) addCoins(bonus);
+  if(stars) countPlay(k, prev);
+  const bonus = Math.round(Math.max(0, stars - prev) * CFG.starBonus * S.E.reward); if(bonus) addCoins(bonus);
   log(S, 'game');
   const nb = checkBadges();
   save(); hud();
@@ -483,6 +497,7 @@ function endRun(S, quit){
     <div class="bigstars">${[1, 2, 3].map(s => `<i class="${stars >= s ? 'on' : ''}"></i>`).join('')}</div>
     ${stars ? '' : '<p>Die Herzen sind leer. Versuch es nochmals, du schaffst das!</p>'}
     <div class="gains"><span><i class="coin"></i>+${S.coins + bonus}</span><span>${S.correct} / ${S.items.length} richtig</span></div>
+    ${replayNote(S)}
     ${nb.length ? `<p><b>Neues Abzeichen:</b> ${nb.map(b => esc(b[1])).join(', ')}</p>` : ''}
     <div class="row"><button class="pbtn" id="ov-next">${stars ? 'Weiter' : 'Nochmals'}</button><button class="pbtn alt" id="ov-map">Zur Karte</button></div></div>`,
     { '#ov-next': () => { closeOverlay(); afterDaily(S, () => {
@@ -508,6 +523,7 @@ function startBoss(u, wi, eb = 0){
   const maxH = Math.max(1, CFG.hearts + E.hearts + [0, 1, 1, 2, 2, 3][skl('herz')]);
   const bossTime = E.bossTime * (1 + .12 * skl('zeit'));
   const S = { u, li: 4, wi, eb, E, th, items, qi: -1, hp: E.bossHP, maxHP: E.bossHP, hearts: maxH, maxH, jokers: [0, 1, 1, 2, 2, 3][skl('joker')], combo: 0, errors: 0, correct: 0, coins: 0, secs: 0, lastAct: Date.now(), started: new Date().toISOString(), t: 0, charge: 0, shots: [], hurt: 0, shake: 0, phurt: 0, phase: 'fight' };
+  rfOf(S, sKey(u.id, eb, 4));
   const P = particles();
   $('#screen').innerHTML = `<section class="stage">
     <div class="qbar"><div class="hearts" id="hearts"></div><span class="combo" id="combo"></span><button class="hud-btn" id="quit">Karte</button></div>
@@ -551,7 +567,7 @@ function startBoss(u, wi, eb = 0){
     const msg = $('#msg');
     if(hit){
       S.combo++; S.correct++; G.totals.correct++; prog.stars = (prog.stars || 0) + 1; G.totals.bestCombo = Math.max(G.totals.bestCombo, S.combo);
-      const gain = Math.round(CFG.bossCoin * mult() * S.E.reward * (1 + .15 * skl('magnet'))); S.coins += gain; addCoins(gain); addXP(Math.round((CFG.xpCorrect + 5) * S.E.reward * (1 + .12 * skl('weise'))));
+      const gain = coinGain(CFG.bossCoin, mult(), S); S.coins += gain; addCoins(gain); addXP(Math.round((CFG.xpCorrect + 2) * S.E.reward * (1 + .12 * skl('weise'))));
       S.shots.push({ x: 80, y: ART.GROUND - 22, t: 0, from: 'me' });
       if(Math.random() < .12 * skl('stern')){ S.shots.push({ x: 80, y: ART.GROUND - 22, t: -.15, from: 'me' }); floatText(box, 'Doppel-Treffer!', 30, 30, '#fff3b0') } sfx.jump(); if(!S.toDe) speak(x.w.fr);
       msg.className = 'msg ok';
@@ -603,7 +619,7 @@ function startBoss(u, wi, eb = 0){
     const k = sKey(u.id, eb, 4), stars = S.errors === 0 ? 3 : S.errors <= 2 ? 2 : 1;
     const firstWin = !G.stars[k];
     if(stars > (G.stars[k] || 0)) G.stars[k] = stars;
-    const winC = Math.round(CFG.bossWin * S.E.reward);
+    const winC = Math.round(CFG.bossWin * S.E.reward * S.rf); countPlay(k, !firstWin);
     G.totals.bosses++; addCoins(winC);
     log(S, 'game'); const nb = checkBadges(); save();
     setTimeout(() => { stopLoop(); overlay(`<div class="board dialog"><h2>${esc(S.th.bossName)} ist besiegt!</h2>
@@ -611,8 +627,8 @@ function startBoss(u, wi, eb = 0){
       <div class="gains"><span><i class="coin"></i>+${S.coins + winC}</span><span>${S.correct} Treffer</span></div>
       ${firstWin && eb < 2 ? `<p><b>Neue Ebene freigeschaltet:</b> ${esc(EBENEN[eb + 1].name)} (${EBENEN[eb + 1].tag})</p>` : ''}
       ${nb.length ? `<p><b>Neues Abzeichen:</b> ${nb.map(b => esc(b[1])).join(', ')}</p>` : ''}
-      <p>Der Boss hat eine goldene Truhe fallen lassen!</p><button class="pbtn" id="ov-ok">Truhe öffnen</button></div>`,
-      { '#ov-ok': () => { closeOverlay(); openChest(eb ? 'eb' + eb : 'boss', () => afterDaily(S, renderMap)) } }) }, 1400);
+      ${firstWin ? '<p>Der Boss hat eine goldene Truhe fallen lassen!</p><button class="pbtn" id="ov-ok">Truhe öffnen</button>' : replayNote(S) + '<button class="pbtn" id="ov-ok">Zur Karte</button>'}</div>`,
+      { '#ov-ok': () => { closeOverlay(); firstWin ? openChest(eb ? 'eb' + eb : 'boss', () => afterDaily(S, renderMap)) : afterDaily(S, renderMap) } }) }, 1400);
   }
   function lose(){
     S.phase = 'lost'; inp.disabled = true; sfx.wrong(); log(S, 'game'); save();
@@ -683,7 +699,7 @@ function renderShop(){
     const card = ([id, name, desc, prices, eff]) => { const l = skl(id), max = l >= 5, p = prices[l];
       return `<div class="item skill"><div class="sk-top"><b>${esc(name)}</b><span class="pips">${[1, 2, 3, 4, 5].map(i => `<i class="${i <= l ? 'on' : ''}"></i>`).join('')}</span></div>
         <small>${esc(desc)}</small><small class="eff">${l ? 'Jetzt: ' + eff(l) : 'Noch nicht gekauft'}${max ? '' : ' → Stufe ' + (l + 1) + ': ' + eff(l + 1)}</small>
-        ${max ? '<span class="maxed">Maximal!</span>' : `<button data-skill="${id}" ${G.coins < p ? 'disabled' : ''}><i class="coin"></i> ${p}</button>`}</div>` };
+        ${max ? '<span class="maxed">Maximal!</span>' : L < SKILL_LVL[l] ? `<small>Stufe ${l + 1} ab Level ${SKILL_LVL[l]}</small>` : `<button data-skill="${id}" ${G.coins < p ? 'disabled' : ''}><i class="coin"></i> ${p}</button>`}</div>` };
     body = SKILL_GROUPS.map(([g, title]) => `<h3 class="skgroup">${esc(title)}</h3><section class="skills">${SKILLS.filter(x => x[5] === g).map(card).join('')}</section>`).join('');
   } else if(shopTab === 'chest'){
     body = `<section class="grid">${CHESTS.map(([id, name, price, desc]) => `<div class="item"><canvas width="20" height="16" data-chest="${id}"></canvas><b>${esc(name)}</b><small>${esc(desc)}</small><span class="price"><i class="coin"></i>${price}</span><button data-buychest="${id}" ${G.coins < price ? 'disabled' : ''}>Kaufen</button></div>`).join('')}</section>`;
@@ -703,7 +719,7 @@ function renderShop(){
   document.querySelectorAll('[data-chest]').forEach(cv => ART.chest(cv.getContext('2d'), 2, 2, 1, cv.dataset.chest === 'gold'));
   document.querySelectorAll('[data-buy]').forEach(b => b.onclick = () => { const s = SHOP.find(x => x.id === b.dataset.buy); if(G.coins < s.price) return; G.coins -= s.price; G.owned[s.id] = 1; G.look[s.kind] = s.key; sfx.buy(); const nb = checkBadges(); if(nb.length) toast('Neues Abzeichen: ' + nb[0][1]); save(); hud(); renderShop() });
   document.querySelectorAll('[data-wear]').forEach(b => b.onclick = () => { const s = SHOP.find(x => x.id === b.dataset.wear); if(s.kind === 'color') G.look.color = s.key; else G.look[s.kind] = G.look[s.kind] === s.key ? null : s.key; sfx.click(); save(); hud(); renderShop() });
-  document.querySelectorAll('[data-skill]').forEach(b => b.onclick = () => { const sk = SKILLS.find(x => x[0] === b.dataset.skill), l = skl(sk[0]), p = sk[3][l]; if(l >= 5 || G.coins < p) return;
+  document.querySelectorAll('[data-skill]').forEach(b => b.onclick = () => { const sk = SKILLS.find(x => x[0] === b.dataset.skill), l = skl(sk[0]), p = sk[3][l]; if(l >= 5 || G.coins < p || lvlOf(G.xp).lvl < SKILL_LVL[l]) return;
     G.coins -= p; G.skills[sk[0]] = l + 1; sfx.level(); toast(sk[1] + ' jetzt auf Stufe ' + (l + 1) + '!'); const nb = checkBadges(); if(nb.length) setTimeout(() => toast('Neues Abzeichen: ' + nb[0][1]), 1500); save(); hud(); renderShop() });
   document.querySelectorAll('[data-buychest]').forEach(b => b.onclick = () => { const ch = CHESTS.find(x => x[0] === b.dataset.buychest); if(G.coins < ch[2]) return; G.coins -= ch[2]; hud(); save(); openChest(ch[0] === 'gold' ? 'gold' : 'wood', () => renderShop()) });
 }

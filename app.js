@@ -4,7 +4,8 @@ const IDLE_CAP = 90; // Sekunden: längere Pausen zählen nicht als Übungszeit
 const { sb, error: setupErr } = makeClient();
 if(sb) loadCloudAudio(sb);
 let kid = ls.get('vk-kid', null);       // { name, pin }
-let units = [], sel = new Set(), dir = 'de-fr', how = 'write', view = 'home', sess = null;
+let units = [], sel = new Set(), dir = 'de-fr', how = 'write', view = 'start', sess = null;
+let gameInfo = null;
 let prog = { cards:{}, stars:0, streak:0, lastDay:'' };
 let pin = '', pinFor = null, pinErr = '';
 let gUnit = ls.get('vk-gunit', null);
@@ -85,15 +86,18 @@ async function login(name, p, silent){
   if(local && local.lastDay && (!prog.lastDay || local.lastDay > prog.lastDay)){ prog = local; unsaved = true; flush() }
   sel = new Set(ls.get('vk-sel-' + kid.name.toLowerCase(), []).filter(id => units.some(u => u.id === id)));
   const firstW = units.find(u => (u.words || []).length); if(!sel.size && firstW) sel.add(firstW.id);
-  view = 'home'; sess = null; render();
+  gameInfo = data.game || null;
+  view = 'start'; sess = null; render();
   return true;
 }
 $('#logout').onclick = async () => { await flush(); ls.del('vk-kid'); kid = null; sess = null; renderWho() };
 
-function showChrome(on){ $('#stats').hidden = !on; $('#tabs').hidden = !on; $('#playlink').hidden = !on; if(on) $('#logout').textContent = kid.name + ' · Abmelden' }
+function showChrome(on){ $('#stats').hidden = !on; $('#tabs').hidden = !on || view === 'start'; if(on) $('#logout').textContent = kid.name + ' · Abmelden' }
 
 /* ---------- Ansichten ---------- */
 const TABS = { home:'#tab-home', gram:'#tab-gram', words:'#tab-words' };
+$('#tab-start').onclick = () => setTab('start');
+$('#brand').onclick = () => { if(kid) setTab('start') };
 function setTab(t){ if(sess) endSession(); view = t; sess = null; for(const [k, id] of Object.entries(TABS)) $(id).setAttribute('aria-selected', k === t); render() }
 for(const [k, id] of Object.entries(TABS)) $(id).onclick = () => setTab(k);
 
@@ -102,7 +106,31 @@ function render(){
   $('#stars').textContent = prog.stars || 0;
   $('#streak').textContent = (prog.lastDay === today() || prog.lastDay === today(-1)) ? (prog.streak || 0) : 0;
   if(sess) return renderSess();
-  view === 'words' ? renderWords() : view === 'gram' ? renderGram() : renderHome();
+  view === 'start' ? renderStart() : view === 'words' ? renderWords() : view === 'gram' ? renderGram() : renderHome();
+}
+
+/* ---------- Startmenü: Üben oder eines der drei Spiele ---------- */
+const TILE_ICONS = {
+  learn:`<svg viewBox="0 0 64 64" aria-hidden="true"><rect x="14" y="8" width="26" height="34" rx="4" fill="#ffd35a" stroke="#18202f" stroke-width="3" transform="rotate(-12 27 25)"/><rect x="24" y="8" width="26" height="34" rx="4" fill="#8fd3ff" stroke="#18202f" stroke-width="3" transform="rotate(8 37 25)"/><text x="38" y="32" font-family="Fredoka,sans-serif" font-weight="700" font-size="16" fill="#18202f" text-anchor="middle" transform="rotate(8 37 25)">é</text><rect x="8" y="32" width="48" height="24" rx="5" fill="#2747c4" stroke="#18202f" stroke-width="3"/><rect x="26" y="40" width="12" height="5" rx="2.5" fill="#fff"/></svg>`,
+  run:`<svg viewBox="0 0 64 64" aria-hidden="true"><path d="M12 40 Q24 8 38 26" fill="none" stroke="#18202f" stroke-width="3" stroke-dasharray="1 6" stroke-linecap="round"/><rect x="4" y="44" width="20" height="8" rx="3" fill="#5fc4a0" stroke="#18202f" stroke-width="3"/><rect x="34" y="34" width="24" height="8" rx="3" fill="#5fc4a0" stroke="#18202f" stroke-width="3"/><circle cx="46" cy="20" r="7" fill="#f2b84b" stroke="#18202f" stroke-width="3"/><rect x="44.5" y="16" width="3" height="8" rx="1.5" fill="#fff3b0"/></svg>`,
+  arena:`<svg viewBox="0 0 64 64" aria-hidden="true"><path d="M32 6 L54 14 V30 C54 44 44 53 32 58 C20 53 10 44 10 30 V14 Z" fill="#e86a6a" stroke="#18202f" stroke-width="3" stroke-linejoin="round"/><path d="M32 18 l4.5 9.2 10.1 1.4-7.3 7.1 1.7 10-9-4.7-9 4.7 1.7-10-7.3-7.1 10.1-1.4z" fill="#ffe27a" stroke="#18202f" stroke-width="2.5" stroke-linejoin="round"/></svg>`,
+  bakery:`<svg viewBox="0 0 64 64" aria-hidden="true"><path d="M6 40 C6 24 18 16 32 16 C46 16 58 24 58 40 C58 46 52 48 46 48 H18 C12 48 6 46 6 40Z" fill="#f7c98f" stroke="#18202f" stroke-width="3"/><path d="M20 26 l4 10 M32 22 v12 M44 26 l-4 10" stroke="#c98a24" stroke-width="3.5" stroke-linecap="round"/><rect x="10" y="48" width="44" height="6" rx="3" fill="#b9a3e3" stroke="#18202f" stroke-width="3"/></svg>`
+};
+function renderStart(){
+  const v = $('#view'), all = allWords(null), due = all.filter(x => isDue(x.key)).length;
+  const g = gameInfo || {}, coins = g.coins || 0;
+  const tile = (k, href, title, sub, extra) => `<${href ? `a href="${href}"` : 'button type="button" id="go-uebe"'} class="tile t-${k}"><span class="ticon">${TILE_ICONS[k]}</span><span class="ttext"><strong>${title}</strong><span>${sub}</span>${extra ? `<em>${extra}</em>` : ''}</span></${href ? 'a' : 'button'}>`;
+  v.innerHTML = `<div class="stack-v">
+    <div class="hello"><h2>Salut ${esc(kid.name)}!</h2><p>Was machst du heute?</p></div>
+    <nav class="tiles" aria-label="Auswahl">
+      ${tile('learn', '', 'Üben', 'Karteikasten, Grammatik und Wörter', all.length ? (due ? `${due} Karten sind heute dran` : 'Heute alles erledigt') : '')}
+      ${tile('run', 'spiel.html?m=run', 'Wort-Sprung', 'Hüpf auf das richtige Wort', '')}
+      ${tile('arena', 'spiel.html?m=arena', 'Wort-Arena', 'Besiege die Grummel-Monster', '')}
+      ${tile('bakery', 'spiel.html?m=bakery', 'Bäckerei', 'Back jedes Wort richtig', '')}
+    </nav>
+    ${gameInfo ? `<p class="hint center">In den Spielen hast du <b>${coins}</b> Münzen gesammelt.</p>` : ''}
+  </div>`;
+  $('#go-uebe').onclick = () => setTab('home');
 }
 
 function renderHome(){
@@ -242,8 +270,8 @@ function renderResult(){
   const s = sess, n = s.res.length;
   endSession();
   if(s.kind === 'learn'){
-    $('#view').innerHTML = `<div class="result"><h2>Gut angeschaut!</h2><p>Jetzt bei «Üben» zeigen, was du dir gemerkt hast.</p><div class="row"><button class="primary" id="home">Zum Karteikasten</button></div></div>`;
-    $('#home').onclick = () => { sess = null; render() }; return;
+    $('#view').innerHTML = `<div class="result"><h2>Gut angeschaut!</h2><p>Jetzt bei «Üben» zeigen, was du dir gemerkt hast.</p><div class="row"><button class="primary" id="home">Zum Karteikasten</button><button class="ghost" id="tostart">Zum Start</button></div></div>`;
+    $('#home').onclick = () => { sess = null; render() }; $('#tostart').onclick = () => setTab('start'); return;
   }
   const good = s.res.filter(r => r.r === 'ok' || r.r === 'accent').length, half = s.res.filter(r => r.r === 'article').length;
   const wrong = s.res.filter(r => r.r !== 'ok' && r.r !== 'accent');
@@ -253,8 +281,8 @@ function renderResult(){
   $('#view').innerHTML = `<div class="result"><h2>${msg}</h2>
     <div class="big3"><div><b>${good}</b><span>richtig</span></div><div><b>${wrong.length}</b><span>${s.kind === 'practice' ? 'nochmals üben' : 'falsch oder fast'}</span></div>${extra}</div>
     ${wrong.length ? `<span class="label">Diese Wörter nochmals anschauen</span><div class="tw"><table><thead><tr><th>Deutsch</th><th>Français</th><th>Deine Antwort</th></tr></thead><tbody>${wrong.map(r => `<tr><td>${esc(r.it.w.de)}</td><td><b>${esc(r.it.w.fr)}</b></td><td>${esc(r.input)}</td></tr>`).join('')}</tbody></table></div>` : ''}
-    <div class="row"><button class="primary" id="home">Zum Karteikasten</button><button class="ghost" id="more">Nochmals</button></div></div>`;
-  $('#home').onclick = () => { sess = null; render() };
+    <div class="row"><button class="primary" id="home">Zum Karteikasten</button><button class="ghost" id="tostart">Zum Start</button><button class="ghost" id="more">Nochmals</button></div></div>`;
+  $('#home').onclick = () => { sess = null; render() }; $('#tostart').onclick = () => setTab('start');
   $('#more').onclick = () => start(s.kind);
 }
 

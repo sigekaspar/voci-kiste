@@ -11,15 +11,15 @@
 <body>
 <div class="wrap">
   <header class="top">
-    <div class="brand"><h1>Voci-Kiste</h1><small>Français</small></div>
+    <button class="brand" id="brand" type="button" aria-label="Zum Start"><h1>Voci-Kiste</h1><small>Français</small></button>
     <div class="stats" id="stats" hidden>
       <span class="pill" title="Sterne: richtige Antworten"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l2.9 6.6 7.1.6-5.4 4.7 1.6 7L12 17.3 5.8 21l1.6-7L2 9.2l7.1-.6z"/></svg><span id="stars">0</span></span>
       <span class="pill" title="Tage nacheinander geübt"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M13 2s1 4-2 7-3 5-3 7a5 5 0 0 0 10 0c0-3-2-4-2-7 0 0 3 2 3 6 0 4-3 7-7 7s-7-3-7-7c0-6 8-8 8-13z"/></svg><span id="streak">0</span> Tage</span>
       <button class="ghost" id="logout"></button>
     </div>
   </header>
-  <nav class="playlinks" id="playlink" hidden aria-label="Spiele"><a class="playlink" href="spiel.html?m=run">Wort-Sprung<small>Jump'n'Run</small></a><a class="playlink arena" href="spiel.html?m=arena">Wort-Arena<small>Kampf</small></a><a class="playlink bakery" href="spiel.html?m=bakery">Bäckerei<small>Rechtschreibung</small></a></nav>
   <nav class="tabs" role="tablist" id="tabs" hidden>
+    <button id="tab-start" class="tostart" aria-label="Zurück zum Start"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>Start</button>
     <button role="tab" id="tab-home" aria-selected="true">Üben</button>
     <button role="tab" id="tab-gram" aria-selected="false">Grammatik</button>
     <button role="tab" id="tab-words" aria-selected="false">Wörter</button>
