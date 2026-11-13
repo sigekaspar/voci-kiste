@@ -148,7 +148,7 @@ function startArena(u, wi, eb = 0, li = 0, go){
       ? `<button class="say big" id="say" aria-label="Nochmals anhören">${SPK2}</button><span id="qw">Hör gut zu!<small>Welcher Gegner trägt die Bedeutung von dem, was du hörst?</small></span>`
       : dir === 'fr'
       ? `<button class="say" id="say" aria-label="Anhören">${SPK2}</button><span>${esc(x.w.fr)}<small>Welcher Gegner trägt die richtige Bedeutung?</small></span>`
-      : `<span>${esc(x.w.de)}<small>Welcher Gegner trägt das französische Wort?</small></span>`;
+      : `${deSay(x.w.de)}<span>${esc(x.w.de)}<small>Welcher Gegner trägt das französische Wort?</small></span>`;
     if(dir === 'fr'){ $('#say').onclick = () => speak(x.w.fr); setTimeout(() => speak(x.w.fr), 200) }
     tags.innerHTML = S.foes.map(f => `<button class="foetag" data-f="${f.id}"><b>${f.n}</b> ${esc(f.word)}</button>`).join('');
     tags.querySelectorAll('.foetag').forEach(b => b.onclick = () => attack(S.foes.find(f => f.id === +b.dataset.f)));
@@ -270,7 +270,9 @@ const ARTICLES = ['le', 'la', 'l’', 'les', 'un', 'une'];
 function splitArticle(fr){
   const s = fr.replace(/'/g, '’').replace(/\s*\([^)]*\)/g, '').trim();
   const m = s.match(/^(le |la |l’|les |un |une )(.+)$/i);
-  return m ? { art: m[1].trim().toLowerCase(), rest: m[2] } : { art: null, rest: s };
+  if(m) return { art: m[1].trim().toLowerCase(), rest: m[2] };
+  const p = s.match(/^(je |j’|tu |il |elle |on |nous |vous |ils |elles )(.+)$/i); // Verbformen: nur das Verb backen
+  return p ? { art: null, rest: p[2], pre: p[1].trim() } : { art: null, rest: s };
 }
 function bakeable(x){ const { rest } = splitArticle(x.w.fr); const core = rest.replace(/[\s’'\-.!?,]/g, ''); return core.length >= 2 && core.length <= 12 && !/[…\/;]/.test(rest) }
 function drawCake(c, n){
@@ -322,7 +324,7 @@ function startBakery(u, wi, eb = 0, li = 0, go){
     const how = art ? 'Zuerst den richtigen Begleiter, dann die Buchstaben' : 'Back das französische Wort, Buchstabe für Buchstabe';
     $('#q').innerHTML = L.listen
       ? `<button class="say" id="say" aria-label="Nochmals anhören">${SPK2}</button><span>Hör gut zu!<small>${esc(x.w.de)} · ${how}</small></span>`
-      : `<span>${esc(x.w.de)}<small>${how}</small></span>`;
+      : `${deSay(x.w.de)}<span>${esc(x.w.de)}<small>${how}</small></span>`;
     if(L.listen){ $('#say').onclick = () => speak(x.w.fr); setTimeout(() => speak(x.w.fr), 250) }
     $('#msg').textContent = ''; $('#msg').className = 'msg';
     render();

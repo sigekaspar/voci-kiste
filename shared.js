@@ -34,8 +34,9 @@ function synth(t){
   if(!hasSynth) return;
   try{
     speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(t); u.lang = 'fr-FR'; u.rate = .85;
-    const v = bestVoice(); if(v) u.voice = v;
+    const de = String(t).startsWith('de:');
+    const u = new SpeechSynthesisUtterance(de ? speakable(String(t).slice(3)) : t); u.lang = de ? 'de-DE' : 'fr-FR'; u.rate = .85;
+    const v = de ? speechSynthesis.getVoices().find(v => /^de/i.test(v.lang)) : bestVoice(); if(v) u.voice = v;
     speechSynthesis.speak(u);
   }catch{}
 }
@@ -61,6 +62,7 @@ function collectTexts(units){
     const name = (u.level ? (LEVELS[u.level] || u.level) + ' · ' : '') + u.title;
     (u.words || []).forEach(w => { if(w.fr) add(w.fr, 'Wort', name) });
     (u.words || []).forEach(w => { if(w.ex) add(w.ex, 'Satz', name) });
+    (u.words || []).forEach(w => { if(w.de) add('de:' + w.de, 'Deutsch', name) });
     const g = u.grammar || {};
     (g.rules || []).forEach(r => (r.ex || []).forEach(([fr]) => add(fr.replace(/[→·]/g, ','), 'Grammatik', name)));
     (g.tasks || []).forEach(t => add(t.t === 'l' ? t.say : t.t === 'w' ? t.a : (t.q.includes('___') ? t.q.replace('___', t.a) : t.a), 'Grammatik', name));
@@ -88,6 +90,9 @@ function clipUrls(t){
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 let speakSeq = 0;
 function stopSpeech(){ try{ if(curAudio){ curAudio.pause() } }catch{} try{ if(hasSynth) speechSynthesis.cancel() }catch{} }
+// Deutsche Wörter: Schlüssel «de:…», eigene Stimme
+const speakDe = t => speak('de:' + t);
+const DE_SPK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z" fill="currentColor"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/></svg><b>DE</b>';
 async function speak(t){
   const my = ++speakSeq;
   stopSpeech();
@@ -178,3 +183,76 @@ function setupMessage(err){
     ? `<div class="empty"><h2>Noch nicht verbunden</h2><p>In der Datei <b>config.js</b> fehlen noch die Angaben von Supabase (Project URL und anon/Publishable key). Siehe Anleitung, Schritt 4.</p></div>`
     : `<div class="empty"><h2>Keine Verbindung</h2><p>Die Supabase-Bibliothek konnte nicht geladen werden. Ist das Internet verbunden? Seite neu laden.</p></div>`;
 }
+
+/* ---------- Verben im Présent (Ça roule 3/4) ---------- */
+// Unregelmässige Verben: je, tu, il, nous, vous, ils
+const IRREG = {
+  'être': ['suis', 'es', 'est', 'sommes', 'êtes', 'sont'], avoir: ['ai', 'as', 'a', 'avons', 'avez', 'ont'], aller: ['vais', 'vas', 'va', 'allons', 'allez', 'vont'],
+  faire: ['fais', 'fais', 'fait', 'faisons', 'faites', 'font'], prendre: ['prends', 'prends', 'prend', 'prenons', 'prenez', 'prennent'], venir: ['viens', 'viens', 'vient', 'venons', 'venez', 'viennent'],
+  pouvoir: ['peux', 'peux', 'peut', 'pouvons', 'pouvez', 'peuvent'], vouloir: ['veux', 'veux', 'veut', 'voulons', 'voulez', 'veulent'], dire: ['dis', 'dis', 'dit', 'disons', 'dites', 'disent'],
+  voir: ['vois', 'vois', 'voit', 'voyons', 'voyez', 'voient'], lire: ['lis', 'lis', 'lit', 'lisons', 'lisez', 'lisent'], 'écrire': ['écris', 'écris', 'écrit', 'écrivons', 'écrivez', 'écrivent'],
+  dormir: ['dors', 'dors', 'dort', 'dormons', 'dormez', 'dorment'], partir: ['pars', 'pars', 'part', 'partons', 'partez', 'partent'], sortir: ['sors', 'sors', 'sort', 'sortons', 'sortez', 'sortent'],
+  mettre: ['mets', 'mets', 'met', 'mettons', 'mettez', 'mettent'], boire: ['bois', 'bois', 'boit', 'buvons', 'buvez', 'boivent'], finir: ['finis', 'finis', 'finit', 'finissons', 'finissez', 'finissent'],
+  courir: ['cours', 'cours', 'court', 'courons', 'courez', 'courent'], savoir: ['sais', 'sais', 'sait', 'savons', 'savez', 'savent']
+};
+const PRON_FR = ['je', 'tu', 'il', 'nous', 'vous', 'ils'], PRON_FR2 = ['je', 'tu', 'elle', 'nous', 'vous', 'elles'];
+const PRON_DE = ['ich', 'du', 'er', 'wir', 'ihr', 'sie (mehrere)'], PRON_DE2 = ['ich', 'du', 'sie (eine)', 'wir', 'ihr', 'sie (mehrere)'];
+const ENDS_ER = ['e', 'es', 'e', 'ons', 'ez', 'ent'];
+const vowelStart = s => /^[aeiouéèêàâîôûhœy]/i.test(s) && !/^h(a[ïi]|aut|ér|ibou|ach)/i.test(s);
+// Infinitiv aus einem Wörterlisten-Eintrag, sonst null
+function verbInf(fr){
+  let f = String(fr || '').replace(/\s*\([^)]*\)\s*/g, ' ').replace(/[’]/g, "'").trim().toLowerCase();
+  const refl = /^(se |s')/.test(f); f = f.replace(/^(se |s')/, '');
+  if(!/^[a-zàâçéèêëîïôûùü]+$/.test(f)) return null;
+  if(IRREG[f] || (/er$/.test(f) && f.length > 3)) return { inf: f, refl };
+  return null;
+}
+function conj(inf){
+  if(IRREG[inf]) return IRREG[inf].slice();
+  const st = inf.slice(0, -2);
+  return ENDS_ER.map((e, i) => {
+    let s = st; const strong = [0, 1, 2, 5].includes(i);
+    if(strong && /(appel|jet)$/.test(s)) s = s + s.slice(-1);
+    else if(strong && /e([^aeiouéè]+)$/.test(s) && /^(achet|lev|promen|pes|amen|emmen|enlev)/.test(s)) s = s.replace(/e([^aeiouéè]+)$/, 'è$1');
+    else if(strong && /é([^aeiouéè]+)$/.test(s)) s = s.replace(/é([^aeiouéè]+)$/, 'è$1');
+    else if(strong && /[ou]y$/.test(s)) s = s.slice(0, -1) + 'i';
+    if(i === 3 && /g$/.test(s)) s += 'e';
+    if(i === 3 && /c$/.test(s)) s = s.slice(0, -1) + 'ç';
+    return s + e;
+  });
+}
+// Ganze Form mit Pronomen: «j'aime», «nous nous lavons»
+function verbForm(inf, refl, i, alt){
+  const f = conj(inf)[i], p = (alt ? PRON_FR2 : PRON_FR)[i];
+  const rp = ['me', 'te', 'se', 'nous', 'vous', 'se'][i];
+  if(refl){ const r = vowelStart(f) && i !== 3 && i !== 4 ? rp[0] + '’' + f : rp + ' ' + f; return (i === 0 ? 'je' : p) + ' ' + r }
+  return i === 0 && vowelStart(f) ? 'j’' + f : p + ' ' + f;
+}
+// Verben einer Stufe aus den Wörterlisten sammeln
+function verbsOf(units, level){
+  const seen = new Map();
+  for(const u of units){ if(level && (u.level || '') !== level) continue;
+    (u.words || []).forEach(w => { const v = verbInf(w.fr); if(v && !seen.has(v.inf)) seen.set(v.inf, { ...v, de: String(w.de || '').split(/[,(;/]/)[0].trim(), unit: u.id }) }) }
+  return [...seen.values()];
+}
+// Für die Spiele: eine «Unité» mit allen Verbformen einer Stufe
+function verbUnits(units){
+  const levels = [...new Set(units.map(u => u.level || ''))];
+  return levels.map(lv => {
+    const vs = verbsOf(units, lv); if(vs.length < 1) return null;
+    const words = vs.flatMap((v, j) => [0, 1, 2, 3, 4, 5].map(i => { const alt = (i === 2 || i === 5) && (j + i) % 2 === 1;
+      return { fr: verbForm(v.inf, v.refl, i, alt), de: (v.de || v.inf) + ' · ' + (alt ? PRON_DE2 : PRON_DE)[i], inf: v.inf, person: i } }));
+    return { id: 'verbs-' + (lv || 'x'), title: 'Verben · Présent', level: lv, ord: 999, words, verbs: true };
+  }).filter(Boolean);
+}
+
+/* ---------- Eigene Aufnahmen der Kinder («Unsere Stimme», von den Eltern freigegeben) ---------- */
+let OWN = null;
+async function loadOwnClips(sb){
+  try{ if(cloudPromise) await cloudPromise }catch{}
+  try{ const { data } = await sb.from('own_clips').select('key,path,kid_name,updated_at'); if(data){ OWN = {}; data.forEach(r => OWN[r.key] = r) } }catch{}
+  return OWN;
+}
+const ownOf = t => OWN && OWN[audioKey(t)];
+function playOwn(t){ const r = ownOf(t); if(!r) return; stopSpeech(); const a = audioEl(CLOUD_BASE + r.path + '?v=' + encodeURIComponent(r.updated_at || '')); curAudio = a; try{ a.currentTime = 0 }catch{} a.play().catch(() => {}) }
+const MIC = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3" fill="currentColor"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>';

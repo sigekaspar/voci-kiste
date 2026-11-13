@@ -204,3 +204,43 @@ button.brand{border:0;background:none;padding:0;text-align:left;cursor:pointer}
 .t-arena{background:linear-gradient(160deg,#ffe1e1,#f5a9b5)}
 .t-bakery{background:linear-gradient(160deg,#fff1cf,#f7c98f)}
 @media (max-width:520px){ .tiles{grid-template-columns:1fr;gap:10px} .tile{min-height:0;padding:12px} .ticon{width:60px;height:60px} .ticon svg{width:46px;height:46px} .ttext strong{font-size:1.3rem} }
+
+.speak.de{width:auto;padding:0 12px;gap:4px;display:inline-flex;align-items:center;justify-content:center}
+.speak.de svg{width:20px;height:20px}
+.speak.de b{font-size:.85rem}
+.review{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:10px}
+.rv > div:first-child{display:flex;flex-direction:column}
+.rv .row{display:flex;flex-wrap:wrap;gap:8px}
+.rv button small{display:block;font-weight:400;font-size:.8rem;opacity:.85}
+.vtab{border-collapse:collapse;font-size:1.05rem;margin:4px 0}
+.vtab td{padding:3px 12px 3px 0}
+.vtab td b{color:var(--accent)}
+.vtab tr.on td{background:var(--warn-soft)}
+.verbform{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.verbform .pron{font-weight:700;font-size:1.3rem}
+.verbform input{flex:1 1 180px}
+.klasse .row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.suggform{display:flex;flex-direction:column;gap:10px;border-top:1px solid var(--line);padding-top:10px}
+.suggform label{display:flex;flex-direction:column;gap:4px;flex:1 1 220px}
+.sg2{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end}
+.recbox{display:flex;gap:6px;align-items:center}
+.rec{display:inline-flex;align-items:center;gap:6px}
+.rec svg,.ghost.small svg{width:16px;height:16px}
+.rec.on{background:var(--bad-soft);border-color:var(--bad);color:var(--bad);animation:pulse 1s infinite}
+@keyframes pulse{50%{opacity:.6}}
+.sugg{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.sugg li{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.sugg .tag.ok{background:var(--ok-soft);color:var(--ok)} .sugg .tag.bad{background:var(--bad-soft);color:var(--bad)}
+.sayrow{display:inline-flex;gap:4px;margin-right:6px;vertical-align:middle}
+.mini.own{width:auto;padding:0 8px;display:inline-flex;gap:4px;align-items:center;border-radius:999px;font-size:.8rem;font-weight:700}
+.mini.own svg{width:14px;height:14px}
+.mini.de{width:auto;padding:0 6px;display:inline-flex;gap:2px;align-items:center;font-size:.7rem}
+.mini.de svg{width:14px;height:14px}
+.ghost.small{padding:3px 10px;font-size:.85rem;display:inline-flex;gap:4px;align-items:center;margin-top:4px}
+.suggform > label{flex:0 0 auto}
+.sugrow{display:flex;flex-direction:column;gap:8px;border-top:1px solid var(--line);padding-top:12px}
+.sugrow .row{display:flex;gap:8px;flex-wrap:wrap}
+.sugrow button svg{width:18px;height:18px;vertical-align:middle}
+.sugrow .ghost{display:inline-flex;align-items:center;gap:6px}
+#go-klasse{display:inline-flex;align-items:center;gap:6px}
+#go-klasse svg{width:18px;height:18px}

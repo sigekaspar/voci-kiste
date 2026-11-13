@@ -5,9 +5,10 @@ const VOICES = [
   ['fr-FR-VivienneMultilingualNeural', 'Vivienne · Frankreich · Frau'], ['fr-FR-RemyMultilingualNeural', 'Rémy · Frankreich · Mann'],
   ['fr-FR-EloiseNeural', 'Eloise · Frankreich · Kinderstimme']
 ];
+const VOICES_DE = [['de-CH-LeniNeural', 'Leni · Schweiz · Frau'], ['de-CH-JanNeural', 'Jan · Schweiz · Mann'], ['de-DE-KatjaNeural', 'Katja · Deutschland · Frau'], ['de-DE-ConradNeural', 'Conrad · Deutschland · Mann']];
 const RATES = [['0%', 'normal'], ['-10%', 'etwas langsamer'], ['-20%', 'langsam']];
 const AZ_GAP = 3200; // Gratisstufe: höchstens etwa 20 Anfragen pro Minute
-let az = { ...{ region:'switzerlandnorth', key:'', voice:'fr-CH-ArianeNeural', rate:'-10%', remember:false }, ...ls.get('vk-azure', {}) };
+let az = { ...{ region:'switzerlandnorth', key:'', voice:'fr-CH-ArianeNeural', voiceDe:'de-CH-LeniNeural', rate:'-10%', remember:false }, ...ls.get('vk-azure', {}) };
 let audioTexts = null, audioFilter = '', gen = null;
 
 function azSaveSettings(){ ls.set('vk-azure', az.remember ? az : { ...az, key:'' }) }
@@ -15,10 +16,13 @@ const xmlEsc = s => String(s).replace(/[<>&'"]/g, c => ({ '<':'&lt;', '>':'&gt;'
 async function sha12(s){ const b = await crypto.subtle.digest('SHA-1', new TextEncoder().encode(s)); return [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, '0')).join('').slice(0, 12) }
 
 let azNoSilence = false; // falls Azure die Pausen-Angabe nicht kennt
-async function azureTTS(text){
-  const lang = az.voice.slice(0, 5);
+const isDe = key => String(key).startsWith('de:');
+const voiceFor = key => isDe(key) ? az.voiceDe : az.voice;
+async function azureTTS(text, voice){
+  voice = voice || voiceFor(text); if(isDe(text)) text = text.slice(3);
+  const lang = voice.slice(0, 5);
   const sil = azNoSilence ? '' : '<mstts:silence type="Leading-exact" value="20ms"/><mstts:silence type="Tailing-exact" value="120ms"/>';
-  const ssml = `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xmlns:mstts="https://www.w3.org/2001/mstts" xml:lang="${lang}"><voice name="${az.voice}">${sil}<prosody rate="${az.rate}">${xmlEsc(speakable(text))}</prosody></voice></speak>`;
+  const ssml = `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xmlns:mstts="https://www.w3.org/2001/mstts" xml:lang="${lang}"><voice name="${voice}">${sil}<prosody rate="${az.rate}">${xmlEsc(speakable(text))}</prosody></voice></speak>`;
   let r;
   try{
     r = await fetch(`https://${az.region.trim().toLowerCase()}.tts.speech.microsoft.com/cognitiveservices/v1`, {
@@ -26,16 +30,17 @@ async function azureTTS(text){
   }catch(e){ throw Object.assign(new Error('Azure ist nicht erreichbar. Stimmt die Region (z. B. switzerlandnorth)?'), { fatal:true }) }
   if(r.status === 429) throw Object.assign(new Error('Zu viele Anfragen, kurze Pause …'), { retry:true });
   if(r.status === 401 || r.status === 403) throw Object.assign(new Error('Der Schlüssel wird nicht akzeptiert. Bitte KEY 1 und Region prüfen.'), { fatal:true });
-  if(r.status === 400 && !azNoSilence){ azNoSilence = true; return azureTTS(text) }
+  if(r.status === 400 && !azNoSilence){ azNoSilence = true; return azureTTS(text, voice) }
   if(r.status === 400) throw new Error('Azure kennt diese Stimme in dieser Region nicht oder der Text ist ungültig.');
   if(!r.ok) throw new Error('Azure-Fehler ' + r.status);
   return await r.blob();
 }
 async function storeClip(key, blob){
-  const path = az.voice + '/' + await sha12(key) + '.mp3';
+  const voice = voiceFor(key);
+  const path = voice + '/' + await sha12(key) + '.mp3';
   const up = await sb.storage.from('audio').upload(path, blob, { upsert:true, contentType:'audio/mpeg', cacheControl:'31536000' });
   if(up.error) throw Object.assign(new Error('Speichern in Supabase fehlgeschlagen: ' + up.error.message), { fatal:true });
-  const row = { key, path, voice:az.voice, updated_at:new Date().toISOString() };
+  const row = { key, path, voice, updated_at:new Date().toISOString() };
   const db = await sb.from('audio_clips').upsert(row);
   if(db.error) throw Object.assign(new Error('Speichern in Supabase fehlgeschlagen: ' + db.error.message), { fatal:true });
   CLOUD = CLOUD || {}; CLOUD[key] = row;
@@ -44,10 +49,10 @@ async function loadAudioTexts(){
   const { data, error } = await sb.from('units').select('id,title,ord,level,words,grammar').order('ord');
   if(error){ toast('Wörter konnten nicht geladen werden: ' + error.message); return [] }
   await loadCloudAudio(sb);
-  const kindOrder = { 'Wort':0, 'Satz':1, 'Grammatik':2 };
+  const kindOrder = { 'Wort':0, 'Satz':1, 'Grammatik':2, 'Deutsch':3 };
   return collectTexts(data || []).sort((a, b) => kindOrder[a.kind] - kindOrder[b.kind]);
 }
-const status = t => { const c = CLOUD && CLOUD[t.key]; if(c) return c.voice === az.voice ? ['az', 'Azure'] : ['old', 'Azure (andere Stimme)']; return (AUDIO && AUDIO[t.key]) ? ['a', 'Stimme A'] : ['dev', 'Gerätestimme'] };
+const status = t => { const c = CLOUD && CLOUD[t.key]; if(c) return c.voice === voiceFor(t.key) ? ['az', 'Azure'] : ['old', 'Azure (andere Stimme)']; return (AUDIO && AUDIO[t.key]) ? ['a', 'Stimme A'] : ['dev', 'Gerätestimme'] };
 const mmss = s => { s = Math.round(s); return (s >= 60 ? Math.floor(s / 60) + ' Min. ' : '') + (s % 60) + ' Sek.' };
 
 async function renderAudio(){
@@ -67,10 +72,11 @@ async function renderAudio(){
     </div>
     <div class="panel"><h2>Stimme</h2>
       <div class="row" style="align-items:flex-end">
-        <div style="flex:2 1 220px;display:flex;flex-direction:column;gap:4px"><label class="label" for="az-voice">Stimme</label><select class="field" id="az-voice">${VOICES.map(([k, n]) => `<option value="${k}" ${az.voice === k ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select></div>
+        <div style="flex:2 1 220px;display:flex;flex-direction:column;gap:4px"><label class="label" for="az-voice">Französische Stimme</label><select class="field" id="az-voice">${VOICES.map(([k, n]) => `<option value="${k}" ${az.voice === k ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select></div>
+        <div style="flex:2 1 220px;display:flex;flex-direction:column;gap:4px"><label class="label" for="az-voice-de">Deutsche Stimme</label><select class="field" id="az-voice-de">${VOICES_DE.map(([k, n]) => `<option value="${k}" ${az.voiceDe === k ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select></div>
         <div style="flex:1 1 150px;display:flex;flex-direction:column;gap:4px"><label class="label" for="az-rate">Tempo</label><select class="field" id="az-rate">${RATES.map(([k, n]) => `<option value="${k}" ${az.rate === k ? 'selected' : ''}>${n}</option>`).join('')}</select></div>
       </div>
-      <div class="row"><input class="field" id="az-sample" style="flex:1 1 240px" value="Bonjour ! Je m’appelle Léa. Septante, quatre-vingts, nonante. Les rollers."><button class="ghost" id="az-try">Probe anhören</button></div>
+      <div class="row"><input class="field" id="az-sample" style="flex:1 1 240px" value="Bonjour ! Je m’appelle Léa. Septante, quatre-vingts, nonante. Les rollers."><button class="ghost" id="az-try">Probe anhören</button><button class="ghost" id="az-try-de">Deutsche Probe</button></div>
       <p class="error" id="az-err" ${''}></p>
     </div>
     <div class="panel"><h2>Aufnahmen erzeugen</h2>
@@ -81,22 +87,24 @@ async function renderAudio(){
       <div class="bar"><i id="az-bar" style="width:${audioTexts.length ? done / audioTexts.length * 100 : 0}%"></i></div>
       <p class="hint" id="az-prog">${gen ? 'Läuft …' : missing.length ? `Für die fehlenden ${missing.length} Texte braucht es etwa ${mmss(missing.length * AZ_GAP / 1000)}, weil die Gratisstufe nur rund 20 Aufnahmen pro Minute erlaubt. Lassen Sie die Seite so lange offen. Sie können jederzeit stoppen und später weitermachen.` : 'Alles erzeugt.'}</p>
       <div class="row">
-        ${gen ? '<button class="danger" id="az-stop">Stopp</button>' : `<button class="primary" id="az-missing" ${missing.length ? '' : 'disabled'}>Fehlende erzeugen (${missing.length})</button><button class="ghost" id="az-all">Alle neu erzeugen</button>`}
+        ${gen ? '<button class="danger" id="az-stop">Stopp</button>' : `<button class="primary" id="az-missing" ${missing.filter(t => !isDe(t.key)).length ? '' : 'disabled'}>Fehlende französische (${missing.filter(t => !isDe(t.key)).length})</button><button class="primary" id="az-missing-de" ${missing.filter(t => isDe(t.key)).length ? '' : 'disabled'}>Fehlende deutsche (${missing.filter(t => isDe(t.key)).length})</button><button class="ghost" id="az-all">Alle neu erzeugen</button>`}
       </div>
     </div>
     <div class="panel"><div class="row" style="justify-content:space-between"><h2>Alle Texte</h2><input class="field" id="az-filter" style="max-width:240px" placeholder="Suchen …" value="${esc(audioFilter)}"></div>
       <p class="hint">Klingt ein Text falsch? Hier können Sie ihn anhören und einzeln neu erzeugen, zum Beispiel mit einer anderen Stimme.</p>
-      <div class="tw"><table><thead><tr><th>Französisch</th><th>Art</th><th>Aufnahme</th><th></th></tr></thead><tbody>
-      ${list.slice(0, 400).map(t => { const [s, n] = status(t); return `<tr><td><button class="mini" data-play="${esc(t.key)}" aria-label="Anhören">${SPK}</button>${esc(t.key)}<br><small class="hint">${esc(t.unit)}</small></td><td>${t.kind}</td><td><span class="tag ${s === 'az' ? 'test' : ''}">${n}</span></td><td><button class="ghost" data-regen="${esc(t.key)}">Neu</button></td></tr>` }).join('')}
+      <div class="tw"><table><thead><tr><th>Text</th><th>Art</th><th>Aufnahme</th><th></th></tr></thead><tbody>
+      ${list.slice(0, 400).map(t => { const [s, n] = status(t); return `<tr><td><button class="mini" data-play="${esc(t.key)}" aria-label="Anhören">${SPK}</button>${isDe(t.key) ? '<b>DE</b> ' + esc(t.key.slice(3)) : esc(t.key)}<br><small class="hint">${esc(t.unit)}</small></td><td>${t.kind}</td><td><span class="tag ${s === 'az' ? 'test' : ''}">${n}</span></td><td><button class="ghost" data-regen="${esc(t.key)}">Neu</button></td></tr>` }).join('')}
       </tbody></table></div>${list.length > 400 ? `<p class="hint">${list.length - 400} weitere, bitte die Suche nutzen.</p>` : ''}
     </div></div>`;
-  const read = () => { az.region = $('#az-region').value.trim(); az.key = $('#az-key').value.trim(); az.voice = $('#az-voice').value; az.rate = $('#az-rate').value; az.remember = $('#az-remember').checked; azSaveSettings() };
+  const read = () => { az.region = $('#az-region').value.trim(); az.key = $('#az-key').value.trim(); az.voice = $('#az-voice').value; az.voiceDe = $('#az-voice-de').value; az.rate = $('#az-rate').value; az.remember = $('#az-remember').checked; azSaveSettings() };
   ['#az-region', '#az-key', '#az-rate', '#az-remember'].forEach(s => $(s).onchange = read);
-  $('#az-voice').onchange = () => { read(); if(!gen) renderAudio() };
+  $('#az-voice').onchange = $('#az-voice-de').onchange = () => { read(); if(!gen) renderAudio() };
   const err = m => { const e = $('#az-err'); if(e) e.textContent = m || '' };
   const need = () => { read(); if(!az.key || !az.region){ err('Bitte zuerst Region und Schlüssel eintragen.'); return false } return true };
   $('#az-try').onclick = async () => { if(!need()) return; err(''); $('#az-try').disabled = true;
     try{ const b = await azureTTS($('#az-sample').value); const a = new Audio(URL.createObjectURL(b)); a.play() }catch(e){ err(e.message) } $('#az-try').disabled = false };
+  $('#az-try-de').onclick = async () => { if(!need()) return; err(''); $('#az-try-de').disabled = true;
+    try{ const b = await azureTTS('de:Grüezi! Das ist die Gummi, der Bleistift und das Heft.'); const a = new Audio(URL.createObjectURL(b)); a.play() }catch(e){ err(e.message) } $('#az-try-de').disabled = false };
   $('#az-filter').oninput = e => { audioFilter = e.target.value; clearTimeout(renderAudio.t); renderAudio.t = setTimeout(() => { renderAudio().then(() => { const f = $('#az-filter'); f.focus(); f.setSelectionRange(f.value.length, f.value.length) }) }, 300) };
   document.querySelectorAll('[data-play]').forEach(b => b.onclick = () => speak(b.dataset.play));
   document.querySelectorAll('[data-regen]').forEach(b => b.onclick = async () => { if(!need()) return; b.disabled = true; b.textContent = '…';
@@ -114,8 +122,9 @@ async function renderAudio(){
     res.innerHTML = `${broken.length} Aufnahmen sind nicht abrufbar. <button class="ghost" id="az-fix">Diese neu erzeugen</button>`;
     $('#az-fix').onclick = () => { if(!need()) return; generate(audioTexts.filter(t => broken.includes(t.key))) };
   };
-  const run = all => { if(!need()) return; err(''); generate(all ? audioTexts.slice() : audioTexts.filter(t => status(t)[0] !== 'az')) };
+  const run = (all, de) => { if(!need()) return; err(''); generate(all ? audioTexts.slice() : audioTexts.filter(t => status(t)[0] !== 'az' && isDe(t.key) === !!de)) };
   const m = $('#az-missing'); if(m) m.onclick = () => run(false);
+  const md = $('#az-missing-de'); if(md) md.onclick = () => run(false, true);
   const al = $('#az-all'); if(al) al.onclick = () => run(true);
 }
 

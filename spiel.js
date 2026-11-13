@@ -97,6 +97,9 @@ if(sb) loadCloudAudio(sb);
 let kid = ls.get('vk-kid', null), units = [], prog = null, G = null, team = null, group = null;
 const SPK2 = '<svg viewBox="0 0 24 24" fill="none" stroke="#3b2d3f" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z" fill="#3b2d3f"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg>';
 
+// Deutscher Vorlese-Knopf neben deutschen Wörtern
+const deSay = w => `<button class="say de" data-de="${esc(w)}" aria-label="Auf Deutsch anhören">DE</button>`;
+document.addEventListener('click', e => { const b = e.target.closest('[data-de]'); if(b){ e.preventDefault(); speakDe(b.dataset.de) } });
 /* ---------- Ton (nur Effekte) ---------- */
 let AC = null, muted = ls.get('vk-mute', false);
 function ac(){ if(!AC){ try{ AC = new (window.AudioContext || window.webkitAudioContext)() }catch{ AC = null } } if(AC && AC.state === 'suspended') AC.resume(); return AC }
@@ -189,6 +192,8 @@ async function init(){
   if(l.error || !l.data) return needLogin();
   if(u.error){ $('#screen').innerHTML = `<div class="board empty"><h2>Keine Verbindung</h2><p>${esc(u.error.message)}</p></div>`; return }
   units = (u.data || []).filter(x => (x.words || []).filter(w => w.fr && w.de).length >= 6);
+  // Verben im Présent als eigene Welt pro Stufe
+  verbUnits(units).forEach(vu => { const last = units.map(x => x.level || '').lastIndexOf(vu.level); units.splice(last + 1, 0, vu) });
   const d = l.data;
   prog = { cards: d.cards || {}, stars: d.stars || 0, streak: d.streak || 0, lastDay: d.last_day || '' };
   G = migrateStars(mergeGame(d.game));
@@ -318,7 +323,7 @@ function renderGoals(){
 }
 
 /* ---------- Wörter auswählen ---------- */
-function wordsOf(u){ return (u.words || []).filter(w => w.fr && w.de).map(w => ({ w, key: u.id + '|' + w.fr })) }
+function wordsOf(u){ return (u.words || []).filter(w => w.fr && w.de).map(w => ({ w, key: w.inf ? 'verb|' + w.inf + '|' + w.person : u.id + '|' + w.fr })) }
 function pickWords(u, n){
   const ws = wordsOf(u);
   const score = x => { const c = prog.cards[x.key]; const box = c ? c.box : 0; const due = !c || c.due <= today(); return (due ? 0 : 10) + box * 2 + Math.random() * 3 };
@@ -343,6 +348,10 @@ function misspell(word, k = 2){
   return shuffle([...out]).slice(0, k);
 }
 function distractors(u, x, field, k = 2){
+  if(u.verbs && x.w.inf){ // Verben: andere Personen desselben Verbs
+    const same = shuffle(u.words.filter(w => w.inf === x.w.inf && w[field] !== x.w[field]).map(w => w[field]));
+    const res = [...new Set(same)].slice(0, k); if(res.length >= k) return res;
+  }
   const pool = [...wordsOf(u), ...units.filter(o => o !== u && o.level === u.level).flatMap(wordsOf)].filter(o => o.w[field] !== x.w[field]);
   const same = pool.filter(o => o.w.fr.split(' ')[0] === x.w.fr.split(' ')[0]); // gleicher Artikel = schwieriger
   const pick = shuffle(same.slice()).slice(0, 1).concat(shuffle(pool.slice()));
@@ -410,10 +419,10 @@ function startRun(u, li, wi, eb = 0, go){
     $('#q').innerHTML = S.variant === 'listen'
       ? `<button class="say big" id="say" aria-label="Nochmals anhören">${SPK2}</button><span id="qw">Hör gut zu!<small>Was hast du gehört? Spring auf die richtige Bedeutung!</small></span>`
       : S.variant === 'spell'
-      ? `<span>${esc(x.w.de)}<small>Welches Wort ist richtig geschrieben?</small></span>`
+      ? `${deSay(x.w.de)}<span>${esc(x.w.de)}<small>Welches Wort ist richtig geschrieben?</small></span>`
       : S.frde
       ? `<button class="say" id="say" aria-label="Anhören">${SPK2}</button><span>${esc(x.w.fr)}<small>Was heisst das? Spring auf das richtige Wort!</small></span>`
-      : `<span>${esc(x.w.de)}<small>Wie heisst das auf Französisch?</small></span>`;
+      : `${deSay(x.w.de)}<span>${esc(x.w.de)}<small>Wie heisst das auf Französisch?</small></span>`;
     if(S.frde){ $('#say').onclick = () => speak(x.w.fr); setTimeout(() => speak(x.w.fr), 200) }
     $('#ans').innerHTML = opts.map((o, i) => `<button class="ans" data-i="${i}"><span class="flag" style="background:${SLOT[i][0]}">${SLOT[i][3]}</span>${esc(o)}<span class="key">Taste ${SLOT[i][3]} oder ${SLOT[i][4]}</span></button>`).join('');
     document.querySelectorAll('.ans').forEach(b => b.onclick = () => choose(+b.dataset.i));
@@ -632,7 +641,7 @@ function startBoss(u, wi, eb = 0, go){
     const x = S.items[S.qi]; S.charge = 0; S.hinted = false; S.toDe = S.qi % 2 === 1; // abwechselnd: auf Französisch, dann auf Deutsch schreiben
     $('#q').innerHTML = S.toDe
       ? `<button class="say" id="say" aria-label="Anhören">${SPK2}</button><span>${esc(x.w.fr)}<small>Was heisst das auf Deutsch?</small></span>`
-      : `<span>${esc(x.w.de)}<small>Wie heisst das auf Französisch?</small></span>`;
+      : `${deSay(x.w.de)}<span>${esc(x.w.de)}<small>Wie heisst das auf Französisch?</small></span>`;
     inp.placeholder = S.toDe ? 'auf Deutsch …' : 'auf Französisch …';
     document.querySelector('.accents').hidden = S.toDe;
     if(S.toDe){ $('#say').onclick = () => speak(x.w.fr); setTimeout(() => speak(x.w.fr), 200) }

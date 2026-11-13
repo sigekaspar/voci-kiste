@@ -4,7 +4,7 @@ if(sb) loadCloudAudio(sb);
 let tab = 'overview', units = [], kids = [], states = {}, sessions = [];
 let editing = null, sure = null, pinEdit = null;
 const WD = ['So','Mo','Di','Mi','Do','Fr','Sa'];
-const KIND = { practice:'Üben', test:'Test', learn:'Anschauen', grammar:'Grammatik', game:'Spiel' };
+const KIND = { practice:'Üben', test:'Test', learn:'Anschauen', grammar:'Grammatik', game:'Spiel', review:'Wiederholung', reviewall:'Alle Wörter', verbs:'Verben' };
 
 async function init(){
   if(setupErr){ $('#view').innerHTML = setupMessage(setupErr); return }
@@ -42,7 +42,7 @@ async function afterLogin(session){
     return;
   }
   $('#tabs').hidden = false;
-  await loadAll(); render();
+  await loadAll(); render(); loadSugg().catch(() => {});
 }
 $('#logout').onclick = async () => { await sb.auth.signOut(); renderLogin() };
 document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => { tab = b.dataset.t; editing = null; sure = null; pinEdit = null; document.querySelectorAll('#tabs button').forEach(x => x.setAttribute('aria-selected', x === b)); render() });
@@ -60,7 +60,7 @@ async function loadAll(){
   states = {}; (s.data || []).forEach(x => states[x.kid_id] = x);
 }
 
-function render(){ ({ overview:renderOverview, words:renderWords, kids:renderKids, audio:renderAudio })[tab]() }
+function render(){ ({ overview:renderOverview, words:renderWords, kids:renderKids, klasse:renderKlasse, audio:renderAudio })[tab]() }
 
 /* ---------- Fortschritt ---------- */
 const mins = s => s < 60 ? (s ? '<1' : '0') : String(Math.round(s / 60));
