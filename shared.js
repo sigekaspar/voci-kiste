@@ -47,7 +47,12 @@ function loadCloudAudio(sb){
     try{
       const C = window.VOCI_CONFIG || {};
       CLOUD_BASE = String(C.url || '').trim().replace(/\/(rest|auth)\/v1\/?.*$/, '').replace(/\/+$/, '') + '/storage/v1/object/public/audio/';
-      const { data } = await sb.from('audio_clips').select('key,path,voice,updated_at').limit(5000);
+      // Supabase gibt pro Abfrage höchstens 1000 Zeilen heraus: darum in Portionen laden
+      const data = [];
+      for(let from = 0; from < 20000; from += 1000){
+        const { data: part, error } = await sb.from('audio_clips').select('key,path,voice,updated_at').order('key').range(from, from + 999);
+        if(error || !part){ if(!data.length) throw error || new Error('keine Daten'); break } data.push(...part); if(part.length < 1000) break;
+      }
       if(data){ CLOUD = {}; data.forEach(r => CLOUD[r.key] = r) }
     }catch{}
     return CLOUD;
