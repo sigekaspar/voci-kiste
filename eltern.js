@@ -128,21 +128,39 @@ function renderWords(){
     <p class="hint">Mehrere richtige Antworten mit / trennen, z. B. «der Schüler / die Schülerin». Auch aus Excel kopierte Spalten (Tabulator) funktionieren.</p>
     <div class="row"><button class="primary" type="submit">Speichern</button><button class="ghost" type="button" id="ed-x">Abbrechen</button></div></form>`;
   v.innerHTML = `<div class="stack-v" style="gap:14px">
-    ${units.map(u => `<details class="unit" ${editing === u.id ? 'open' : ''}><summary>${esc(uname(u))} <small>${(u.words || []).length ? (u.words || []).length + ' Wörter' : 'nur Grammatik'}</small></summary><div class="body">
-      ${editing === u.id ? editor(u) : `<div class="tw"><table><thead><tr><th>Français</th><th>Deutsch</th></tr></thead><tbody>
-      ${(u.words || []).map(w => `<tr><td>${hasTTS ? `<button class="mini" data-say="${esc(w.fr)}" aria-label="Anhören">${SPK}</button>` : ''}<b>${esc(w.fr)}</b>${w.ex ? `<br><span class="ex">${esc(w.ex)}</span>` : ''}</td><td>${esc(w.de)}</td></tr>`).join('')}</tbody></table></div>
+    ${units.map(u => `<details class="unit" data-u="${esc(u.id)}" ${editing === u.id || openU.has(u.id) ? 'open' : ''}><summary>${esc(uname(u))} <small>${(u.words || []).length ? (u.words || []).length + ' Wörter' : 'nur Grammatik'}</small></summary><div class="body">
+      ${editing === u.id ? editor(u) : `<div class="tw"><table><thead><tr><th>Français</th><th>Deutsch</th><th></th></tr></thead><tbody>
+      ${(u.words || []).map((w, wi) => { const wk = u.id + '#' + wi; return `<tr><td>${hasTTS ? `<button class="mini" data-say="${esc(w.fr)}" aria-label="Anhören">${SPK}</button>` : ''}<b>${esc(w.fr)}</b>${w.ex ? `<br><span class="ex">${esc(w.ex)}</span>` : ''}</td><td>${esc(w.de)}</td>
+        <td class="wdel"><button class="${sureW === wk ? 'danger sure' : 'ghost'} small" data-delw="${esc(wk)}" aria-label="Wort löschen">${sureW === wk ? 'Wirklich löschen?' : '✕'}</button></td></tr>` }).join('')}</tbody></table></div>
       <div class="row"><button class="ghost" data-edit="${esc(u.id)}">Bearbeiten</button><button class="ghost" data-up="${esc(u.id)}" aria-label="Nach oben">↑</button><button class="ghost" data-down="${esc(u.id)}" aria-label="Nach unten">↓</button><button class="danger ${sure === u.id ? 'sure' : ''}" data-del="${esc(u.id)}">${sure === u.id ? 'Wirklich löschen?' : 'Löschen'}</button></div>`}
     </div></details>`).join('')}
     ${editing === 'new' ? `<div class="unit"><div class="body" style="padding-top:16px">${editor(null)}</div></div>` : '<button class="primary" id="add" style="align-self:flex-start">Neue Unité eintragen</button>'}
+    <div class="panel"><h2>Papierkorb</h2><p class="hint">Gelöschte Unités und Wörter bleiben 60 Tage hier und lassen sich wiederherstellen.</p>
+      ${trash === null ? '<p class="hint">Wird geladen …</p>' : trash.length ? `<div class="tw"><table><tbody>${trash.map(t => `<tr><td><b>${t.kind === 'unit' ? 'Unité' : 'Wort'}:</b> ${esc(t.title)}<br><small class="hint">gelöscht am ${new Date(t.deleted_at).toLocaleString('de-CH', { dateStyle:'short', timeStyle:'short' })}</small></td><td class="wdel"><button class="ghost" data-restore="${t.id}">Wiederherstellen</button></td></tr>`).join('')}</tbody></table></div>` : '<p>Der Papierkorb ist leer.</p>'}
+    </div>
   </div>`;
+  if(trash === null) loadTrash();
   v.querySelectorAll('[data-say]').forEach(b => b.onclick = () => speak(b.dataset.say));
+  v.querySelectorAll('details[data-u]').forEach(d => d.ontoggle = () => { d.open ? openU.add(d.dataset.u) : openU.delete(d.dataset.u) });
+  v.querySelectorAll('[data-delw]').forEach(b => b.onclick = async () => {
+    const wk = b.dataset.delw; if(sureW !== wk){ sureW = wk; render(); return } sureW = null;
+    const [uid, wi] = [wk.slice(0, wk.lastIndexOf('#')), +wk.slice(wk.lastIndexOf('#') + 1)];
+    const u = units.find(x => x.id === uid); if(!u) return; const w = u.words[wi]; if(!w) return;
+    const words = u.words.filter((_, i) => i !== wi);
+    const tr = await sb.from('trash').insert({ kind:'word', title: w.fr + ' · ' + w.de + ' (' + uname(u) + ')', item:{ unit_id:uid, index:wi, word:w } });
+    if(tr.error) return toast('Löschen hat nicht geklappt: ' + tr.error.message);
+    const { error } = await sb.from('units').update({ words, updated_at:new Date().toISOString() }).eq('id', uid);
+    if(error) return toast('Löschen hat nicht geklappt: ' + error.message);
+    u.words = words; trash = null; render(); toast('Wort gelöscht. Es liegt im Papierkorb.');
+  });
+  v.querySelectorAll('[data-restore]').forEach(b => b.onclick = () => restoreTrash(+b.dataset.restore, b));
   v.querySelectorAll('[data-edit]').forEach(b => b.onclick = () => { editing = b.dataset.edit; sure = null; render() });
   v.querySelectorAll('[data-up],[data-down]').forEach(b => b.onclick = () => move(b.dataset.up || b.dataset.down, b.dataset.up ? -1 : 1));
   v.querySelectorAll('[data-del]').forEach(b => b.onclick = async () => {
     const id = b.dataset.del; if(sure !== id){ sure = id; render(); return } sure = null;
     const { error } = await sb.from('units').delete().eq('id', id);
     if(error){ console.error(error); return toast('Löschen hat nicht geklappt: ' + error.message) }
-    units = units.filter(u => u.id !== id); render(); toast('Unité gelöscht');
+    units = units.filter(u => u.id !== id); trash = null; render(); toast('Unité gelöscht. Sie liegt im Papierkorb.');
   });
   const add = $('#add'); if(add) add.onclick = () => { editing = 'new'; render() };
   const f = $('#ed'); if(!f) return;
@@ -158,6 +176,25 @@ function renderWords(){
     const i = units.findIndex(u => u.id === row.id); i >= 0 ? units[i] = row : units.push(row);
     units.sort((a, b) => a.ord - b.ord); editing = null; render(); toast('Gespeichert'); checkAudioGaps();
   };
+}
+let trash = null, sureW = null; const openU = new Set();
+async function loadTrash(){ const { data, error } = await sb.from('trash').select('id,kind,title,item,deleted_at').order('deleted_at', { ascending:false }).limit(200); trash = error ? [] : (data || []); if(tab === 'words') render() }
+async function restoreTrash(id, btn){
+  const t = (trash || []).find(x => x.id === id); if(!t) return; btn.disabled = true;
+  try{
+    if(t.kind === 'unit'){
+      const u = t.item; if(units.some(x => x.id === u.id)) throw new Error('Diese Unité gibt es schon.');
+      const { error } = await sb.from('units').insert({ id:u.id, title:u.title, ord:u.ord, level:u.level, words:u.words || [], grammar:u.grammar || null, updated_at:new Date().toISOString() }); if(error) throw error;
+    } else {
+      const { unit_id, index, word } = t.item;
+      const { data:u, error } = await sb.from('units').select('id,words').eq('id', unit_id).maybeSingle(); if(error) throw error;
+      if(!u) throw new Error('Die Unité dazu gibt es nicht mehr. Stellen Sie zuerst die Unité wieder her.');
+      const words = u.words || []; if(!words.some(w => w.fr === word.fr)) words.splice(Math.min(index ?? words.length, words.length), 0, word);
+      const up = await sb.from('units').update({ words, updated_at:new Date().toISOString() }).eq('id', unit_id); if(up.error) throw up.error;
+    }
+    await sb.from('trash').delete().eq('id', id);
+    await loadAll(); trash = null; render(); toast('Wiederhergestellt'); checkAudioGaps();
+  }catch(e){ btn.disabled = false; toast(e.message || String(e)) }
 }
 async function move(id, d){
   const i = units.findIndex(u => u.id === id), j = i + d; if(j < 0 || j >= units.length) return;

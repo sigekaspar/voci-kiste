@@ -311,3 +311,20 @@ grant execute on function public.kid_suggestions(text, text) to anon, authentica
 revoke execute on function public.kid_names() from anon, authenticated, public;
 revoke select on public.own_clips from anon;
 grant select (key, path, updated_at) on public.own_clips to anon;
+
+-- Papierkorb und Wiederherstellen (siehe Migration ldc_wiederherstellen_papierkorb)
+alter table public.suggestions drop constraint if exists suggestions_unit_id_fkey;
+create table if not exists public.trash(id bigserial primary key, kind text not null, title text not null, item jsonb not null, deleted_at timestamptz not null default now());
+alter table public.trash enable row level security;
+drop policy if exists trash_admin on public.trash;
+create policy trash_admin on public.trash for all to authenticated using (public.is_admin()) with check (public.is_admin());
+grant select, insert, delete on public.trash to authenticated;
+grant usage, select on sequence public.trash_id_seq to authenticated;
+create or replace function public.units_to_trash() returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  insert into public.trash(kind, title, item) values ('unit', coalesce(old.title, old.id) || coalesce(' · ' || old.level, ''), to_jsonb(old));
+  delete from public.trash where deleted_at < now() - interval '60 days';
+  return old;
+end $$;
+drop trigger if exists units_trash on public.units;
+create trigger units_trash before delete on public.units for each row execute function public.units_to_trash();

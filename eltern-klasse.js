@@ -1,10 +1,11 @@
 // Voci-Kiste · Elternseite: Klassenwörter der Kinder prüfen und freigeben
-let sugg = null, suggErr = '', suggEdit = {}, ownList = null;
+let sugg = null, suggErr = '', suggEdit = {}, ownList = null, suggDone = [];
 const hexToBlob = (hex, type) => { if(!hex) return null; const h = String(hex).replace(/^\\x/, ''); const b = new Uint8Array(h.length / 2); for(let i = 0; i < b.length; i++) b[i] = parseInt(h.substr(i * 2, 2), 16); return new Blob([b], { type: type || 'audio/webm' }) };
 const extOf = m => /mp4|m4a|aac/.test(m || '') ? 'm4a' : /ogg/.test(m || '') ? 'ogg' : 'webm';
 async function loadSugg(){
   const { data, error } = await sb.from('suggestions').select('id,kind,unit_id,fr,de,fr_audio,de_audio,mime,status,created_at,kid_id').eq('status', 'pending').order('created_at');
   suggErr = error ? error.message : ''; sugg = data || [];
+  const d = await sb.from('suggestions').select('id,kind,unit_id,fr,de,status,created_at,kid_id').neq('status', 'pending').order('created_at', { ascending:false }).limit(100); suggDone = d.data || [];
   const o = await sb.from('own_clips').select('key,path,kid_name,updated_at').order('updated_at', { ascending:false }); ownList = o.data || [];
   updSuggBadge();
 }
@@ -27,6 +28,10 @@ async function renderKlasse(){
           ${dup ? '<p class="hint">Dieses Wort gibt es schon. Bei der Freigabe werden nur die Aufnahmen übernommen.</p>' : ''}
           <div class="row"><button class="primary" data-ok>Freigeben</button><button class="danger" data-no>Ablehnen</button></div></div>` }).join('') : '<p>Zurzeit gibt es keine offenen Vorschläge.</p>'}
     </div>
+    <div class="panel"><h2>Erledigte Vorschläge</h2>
+      <p class="hint">Diese Liste sehen die Kinder bei «Deine Vorschläge». Mit «Entfernen» verschwindet ein Eintrag dort. Ein freigegebenes Wort selbst löschen Sie unter «Wörter» mit ✕.</p>
+      ${suggDone.length ? `<div class="tw"><table><tbody>${suggDone.map(x => `<tr><td><b>${esc(x.fr)}</b>${x.de ? ' · ' + esc(x.de) : ''}<br><small class="hint">${esc(kname(x.kid_id))} · ${x.status === 'approved' ? 'freigegeben' : 'abgelehnt'} · ${new Date(x.created_at).toLocaleDateString('de-CH')}</small></td><td class="wdel"><button class="ghost" data-delsug="${x.id}">Entfernen</button></td></tr>`).join('')}</tbody></table></div>` : '<p class="hint">Noch keine.</p>'}
+    </div>
     <div class="panel"><h2>Eigene Aufnahmen</h2>
       <p class="hint">Diese Aufnahmen hören die Kinder als «Unsere Stimme» neben der Profi-Stimme.</p>
       ${ownList && ownList.length ? `<div class="tw"><table><thead><tr><th>Text</th><th>Von</th><th></th></tr></thead><tbody>${ownList.map(o => `<tr><td><button class="mini" data-po="${esc(o.key)}" aria-label="Anhören">${SPK}</button>${o.key.startsWith('de:') ? '<b>DE</b> ' + esc(o.key.slice(3)) : esc(o.key)}</td><td>${esc(o.kid_name || '')}</td><td><button class="ghost" data-delown="${esc(o.key)}">Entfernen</button></td></tr>`).join('')}</tbody></table></div>` : '<p class="hint">Noch keine.</p>'}
@@ -38,6 +43,7 @@ async function renderKlasse(){
     row.querySelector('[data-ok]').onclick = async ev => { ev.target.disabled = true; try{ await approveSugg(s, e.fr.trim(), e.de.trim(), kname(s.kid_id)); toast('Freigegeben'); sugg = null; renderKlasse(); checkAudioGaps() }catch(err){ ev.target.disabled = false; toast(err.message) } };
     row.querySelector('[data-no]').onclick = async ev => { ev.target.disabled = true; const { error } = await sb.from('suggestions').update({ status:'rejected', fr_audio:null, de_audio:null }).eq('id', s.id); if(error) return toast(error.message); sugg = null; renderKlasse() };
   });
+  v.querySelectorAll('[data-delsug]').forEach(b => b.onclick = async () => { b.disabled = true; const { error } = await sb.from('suggestions').delete().eq('id', +b.dataset.delsug); if(error){ b.disabled = false; return toast(error.message) } sugg = null; renderKlasse() });
   v.querySelectorAll('[data-po]').forEach(b => b.onclick = () => { OWN = OWN || {}; ownList.forEach(o => OWN[o.key] = o); playOwn(b.dataset.po) });
   v.querySelectorAll('[data-delown]').forEach(b => b.onclick = async () => { const o = ownList.find(x => x.key === b.dataset.delown); b.disabled = true;
     await sb.storage.from('audio').remove([o.path]); const { error } = await sb.from('own_clips').delete().eq('key', o.key); if(error) toast(error.message); sugg = null; renderKlasse() });
